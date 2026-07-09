@@ -1,0 +1,43 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+  
+  --color-tequila-dark: #0a0a0a;
+  --color-tequila-card: #121214;
+  --color-tequila-border: #27272a;
+  --color-tequila-orange: #eab308;
+  --color-tequila-yellow: #facc15;
+  --color-tequila-pink: #a1a1aa;
+  --color-tequila-neon: #eab308;
+}
+
+/* Custom scrollbars and styling */
+@layer base {
+  body {
+    background-color: var(--color-tequila-dark);
+    color: #d4d4d8;
+    font-family: var(--font-sans);
+  }
+}
+
+.neon-glow-orange {
+  text-shadow: 0 0 8px rgba(234, 179, 8, 0.4), 0 0 16px rgba(234, 179, 8, 0.2);
+}
+
+.neon-glow-pink {
+  text-shadow: 0 0 8px rgba(250, 204, 21, 0.4), 0 0 16px rgba(250, 204, 21, 0.2);
+}
+
+.neon-border-orange {
+  box-shadow: 0 0 12px rgba(234, 179, 8, 0.12);
+  border-color: rgba(234, 179, 8, 0.35);
+}
+
+.neon-border-pink {
+  box-shadow: 0 0 12px rgba(250, 204, 21, 0.12);
+  border-color: rgba(250, 204, 21, 0.35);
+}

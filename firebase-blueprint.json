@@ -1,0 +1,210 @@
+{
+  "entities": {
+    "InventoryItem": {
+      "title": "InventoryItem",
+      "description": "Represents an individual item in the inventory, raw or crafted.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["raw", "crafted"] },
+        "stock": { "type": "number" },
+        "minStock": { "type": "number" },
+        "purchasePrice": { "type": "number" },
+        "sellPrice": { "type": "number" },
+        "iconName": { "type": "string" },
+        "category": { "type": "string", "enum": ["raw", "drink", "alcohol", "soft", "other"] }
+      },
+      "required": ["id", "name", "type", "stock", "minStock", "purchasePrice", "sellPrice", "iconName", "category"]
+    },
+    "RecipeIngredient": {
+      "title": "RecipeIngredient",
+      "description": "A single ingredient within a crafting recipe.",
+      "type": "object",
+      "properties": {
+        "itemId": { "type": "string" },
+        "quantity": { "type": "number" }
+      },
+      "required": ["itemId", "quantity"]
+    },
+    "Recipe": {
+      "title": "Recipe",
+      "description": "Defines the ingredients and crafting parameters required to brew a specific drink.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "resultItemId": { "type": "string" },
+        "ingredients": {
+          "type": "array",
+          "items": { "$ref": "#/entities/RecipeIngredient" }
+        },
+        "craftTimeSeconds": { "type": "number" }
+      },
+      "required": ["id", "resultItemId", "ingredients", "craftTimeSeconds"]
+    },
+    "Bartender": {
+      "title": "Bartender",
+      "description": "Information and statistics about a terminal user / bartender.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "pin": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string", "enum": ["manager", "barman"] },
+        "status": { "type": "string", "enum": ["active", "inactive", "on_break"] },
+        "totalSalesMade": { "type": "number" },
+        "totalCommissionEarned": { "type": "number" },
+        "commissionRate": { "type": "number" }
+      },
+      "required": ["id", "pin", "name", "role", "status", "totalSalesMade", "totalCommissionEarned", "commissionRate"]
+    },
+    "SaleItem": {
+      "title": "SaleItem",
+      "description": "An item recorded inside a sale log.",
+      "type": "object",
+      "properties": {
+        "itemId": { "type": "string" },
+        "name": { "type": "string" },
+        "price": { "type": "number" },
+        "quantity": { "type": "number" }
+      },
+      "required": ["itemId", "name", "price", "quantity"]
+    },
+    "SaleLog": {
+      "title": "SaleLog",
+      "description": "A ledger record for an individual sale transaction.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "items": {
+          "type": "array",
+          "items": { "$ref": "#/entities/SaleItem" }
+        },
+        "totalAmount": { "type": "number" },
+        "bartenderId": { "type": "string" },
+        "bartenderName": { "type": "string" },
+        "commissionPaid": { "type": "number" },
+        "discountPercentage": { "type": "number" },
+        "discountAmount": { "type": "number" }
+      },
+      "required": ["id", "timestamp", "items", "totalAmount", "bartenderId", "bartenderName", "commissionPaid"]
+    },
+    "PurchaseItem": {
+      "title": "PurchaseItem",
+      "description": "An item recorded inside a stock purchase log.",
+      "type": "object",
+      "properties": {
+        "itemId": { "type": "string" },
+        "name": { "type": "string" },
+        "quantity": { "type": "number" },
+        "pricePerUnit": { "type": "number" }
+      },
+      "required": ["itemId", "name", "quantity", "pricePerUnit"]
+    },
+    "PurchaseLog": {
+      "title": "PurchaseLog",
+      "description": "A ledger record of an inventory supply purchase.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "items": {
+          "type": "array",
+          "items": { "$ref": "#/entities/PurchaseItem" }
+        },
+        "totalCost": { "type": "number" },
+        "description": { "type": "string" }
+      },
+      "required": ["id", "timestamp", "items", "totalCost", "description"]
+    },
+    "PayoutLog": {
+      "title": "PayoutLog",
+      "description": "A cash register payout transaction log.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "bartenderId": { "type": "string" },
+        "bartenderName": { "type": "string" },
+        "amount": { "type": "number" },
+        "type": { "type": "string", "enum": ["commission", "bonus", "advance"] },
+        "notes": { "type": "string" }
+      },
+      "required": ["id", "timestamp", "bartenderId", "bartenderName", "amount", "type"]
+    },
+    "BarTabItem": {
+      "title": "BarTabItem",
+      "description": "An item added to a customer's tab.",
+      "type": "object",
+      "properties": {
+        "itemId": { "type": "string" },
+        "name": { "type": "string" },
+        "price": { "type": "number" },
+        "quantity": { "type": "number" }
+      },
+      "required": ["itemId", "name", "price", "quantity"]
+    },
+    "BarTab": {
+      "title": "BarTab",
+      "description": "Represents an open or paid customer bar tab.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customerName": { "type": "string" },
+        "items": {
+          "type": "array",
+          "items": { "$ref": "#/entities/BarTabItem" }
+        },
+        "totalAmount": { "type": "number" },
+        "status": { "type": "string", "enum": ["open", "paid", "partially_paid"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "closedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "customerName", "items", "totalAmount", "status", "createdAt"]
+    },
+    "BusinessState": {
+      "title": "BusinessState",
+      "description": "The complete combined state document of the Tequilala Bar.",
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": { "$ref": "#/entities/InventoryItem" }
+        },
+        "recipes": {
+          "type": "array",
+          "items": { "$ref": "#/entities/Recipe" }
+        },
+        "bartenders": {
+          "type": "array",
+          "items": { "$ref": "#/entities/Bartender" }
+        },
+        "sales": {
+          "type": "array",
+          "items": { "$ref": "#/entities/SaleLog" }
+        },
+        "purchases": {
+          "type": "array",
+          "items": { "$ref": "#/entities/PurchaseLog" }
+        },
+        "payouts": {
+          "type": "array",
+          "items": { "$ref": "#/entities/PayoutLog" }
+        },
+        "registerBalance": { "type": "number" },
+        "barTabs": {
+          "type": "array",
+          "items": { "$ref": "#/entities/BarTab" }
+        }
+      },
+      "required": ["items", "recipes", "bartenders", "sales", "purchases", "payouts", "registerBalance", "barTabs"]
+    }
+  },
+  "firestore": {
+    "company/state": {
+      "schema": "BusinessState",
+      "description": "The master singleton document containing the entire state of Tequilala bar."
+    }
+  }
+}

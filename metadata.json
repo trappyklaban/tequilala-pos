@@ -1,0 +1,6 @@
+{
+  "name": "Tequi-la-la POS & Management",
+  "description": "Kompletní pokladní, výrobní, nákupní a provizní manažerský systém pro vyhlášený FiveM bar Tequi-la-la.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
