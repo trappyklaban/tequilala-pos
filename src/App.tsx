@@ -102,31 +102,8 @@ export default function App() {
     const docRef = doc(db, "company", "state");
     const unsubscribe = onSnapshot(docRef, async (snapshot) => {
       if (snapshot.exists()) {
-        let data = snapshot.data() as BusinessState;
+        const data = snapshot.data() as BusinessState;
         
-        // One-time automatic migration to reset database records as requested by the owner
-        const hasPerformedReset = localStorage.getItem("tequilala_reset_july_2026_v3");
-        if (!hasPerformedReset) {
-          data = {
-            ...data,
-            items: (data.items || INITIAL_ITEMS).map((item) => ({ ...item, stock: 0 })),
-            recipes: data.recipes || INITIAL_RECIPES,
-            bartenders: data.bartenders || INITIAL_BARTENDERS,
-            sales: [],
-            purchases: [],
-            payouts: [],
-            registerBalance: 0,
-            barTabs: [],
-            shifts: [],
-          };
-          localStorage.setItem("tequilala_reset_july_2026_v3", "true");
-          try {
-            await setDoc(docRef, data);
-          } catch (err) {
-            console.error("Failed to save auto-reset state to Firestore:", err);
-          }
-        }
-
         let needsSave = false;
         const cleanedBartenders = (data.bartenders || []).map((b) => {
           if (b.id === "bart_majitel" && b.status !== "active") {
