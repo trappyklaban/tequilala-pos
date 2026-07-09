@@ -22,6 +22,7 @@ export interface Recipe {
   resultItemId: string;   // ID of the crafted drink
   ingredients: RecipeIngredient[];
   craftTimeSeconds: number; // Simulated crafting time
+  yieldAmount?: number;   // How many pieces are produced per batch (defaults to 20 if not specified)
 }
 
 export interface Bartender {

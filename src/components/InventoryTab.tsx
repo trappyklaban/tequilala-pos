@@ -446,12 +446,13 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
                               (() => {
                                 const recipe = recipes.find((r) => r.resultItemId === item.id);
                                 let costPerDrink = 0;
+                                const yieldAmt = recipe?.yieldAmount ?? 20;
                                 if (recipe) {
                                   const prodCostBatch = recipe.ingredients.reduce((sum, ing) => {
                                     const ingItem = items.find((it) => it.id === ing.itemId);
                                     return sum + (ingItem ? ingItem.purchasePrice * ing.quantity : 0);
                                   }, 0);
-                                  costPerDrink = prodCostBatch / 20;
+                                  costPerDrink = prodCostBatch / yieldAmt;
                                 } else {
                                   costPerDrink = item.purchasePrice;
                                 }
@@ -460,7 +461,7 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
                                   <div className="space-y-0.5 text-[10px]">
                                     <div className="flex items-center gap-1.5">
                                       <span className="text-zinc-500 font-bold uppercase text-[8px] tracking-wide">Náklad 1ks:</span>
-                                      <span className="font-bold text-emerald-400" title="Cena celkové suroviny děleno 20">
+                                      <span className="font-bold text-emerald-400" title={`Cena celkové suroviny děleno ${yieldAmt}`}>
                                         ${costPerDrink.toFixed(2)}
                                       </span>
                                     </div>

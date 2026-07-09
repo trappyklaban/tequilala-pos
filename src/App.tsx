@@ -460,7 +460,7 @@ export default function App() {
       if (item.id === recipe.resultItemId) {
         return {
           ...item,
-          stock: item.stock + (quantity * 20),
+          stock: item.stock + (quantity * (recipe.yieldAmount ?? 20)),
         };
       }
       return item;
@@ -614,6 +614,7 @@ export default function App() {
       resultItemId: finalResultItemId,
       ingredients: newRecipe.ingredients,
       craftTimeSeconds: newRecipe.craftTimeSeconds,
+      yieldAmount: newRecipe.yieldAmount,
     };
 
     saveState({

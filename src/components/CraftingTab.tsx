@@ -135,7 +135,7 @@ export const CraftingTab: React.FC<CraftingTabProps> = ({ items, recipes, onCraf
                 PROBÍHÁ MÍCHÁNÍ (DÍLNA)
               </span>
               <h2 className="text-base font-bold text-white uppercase tracking-tight">
-                Vyrábím {activeCraft.quantity}x várku ({activeCraft.quantity * 20} ks) {activeCraft.recipeName}
+                Vyrábím {activeCraft.quantity}x várku ({activeCraft.quantity * (recipes.find(r => r.id === activeCraft.recipeId)?.yieldAmount ?? 20)} ks) {activeCraft.recipeName}
               </h2>
               <p className="text-xs text-zinc-400 italic">
                 {activeCraft.stepMessage}
@@ -173,14 +173,14 @@ export const CraftingTab: React.FC<CraftingTabProps> = ({ items, recipes, onCraf
             Výrobní barový systém (Míchání)
           </h2>
           <p className="text-xs text-zinc-500 mt-1">
-            Z jednoho kusu ingredience v receptu se vyrobí 20 kusů nápoje. Spotřebujte naskladněné suroviny k výrobě.
+            Z receptury se vyrobí specifikovaný počet kusů nápoje na jednu várku. Spotřebujte naskladněné suroviny k výrobě.
           </p>
         </div>
 
         {/* Quantity selector for upcoming craft */}
         <div className="flex items-center gap-3 bg-zinc-950 border border-tequila-border p-2 rounded-md self-start md:self-auto font-mono text-xs">
           <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider pl-1">
-            Počet várek (1 várka = 20 ks):
+            Počet várek k míchání:
           </span>
           <div className="flex items-center gap-2">
             <button
@@ -241,8 +241,8 @@ export const CraftingTab: React.FC<CraftingTabProps> = ({ items, recipes, onCraf
                         <span className="text-[9px] font-mono bg-tequila-orange/10 px-2 py-0.5 text-tequila-orange rounded font-bold border border-tequila-orange/15">
                           Skladem: {Math.floor(resultItem.stock)} ks
                         </span>
-                        <span className="text-[9px] font-mono bg-emerald-950/20 px-2 py-0.5 text-emerald-400 rounded font-bold border border-emerald-500/10" title="Cena za ingredience na 1 várku (20 ks)">
-                          Výroba várky: ${(recipe.ingredients.reduce((sum, ing) => {
+                        <span className="text-[9px] font-mono bg-emerald-950/20 px-2 py-0.5 text-emerald-400 rounded font-bold border border-emerald-500/10" title={`Cena za ingredience na 1 várku (${recipe.yieldAmount ?? 20} ks)`}>
+                          Výroba várky ({recipe.yieldAmount ?? 20} ks): ${(recipe.ingredients.reduce((sum, ing) => {
                             const ingItem = getItem(ing.itemId);
                             return sum + (ingItem ? ingItem.purchasePrice * ing.quantity : 0);
                           }, 0)).toFixed(2)}
@@ -318,7 +318,7 @@ export const CraftingTab: React.FC<CraftingTabProps> = ({ items, recipes, onCraf
                 }`}
               >
                 <LucideIcon name="Hammer" className="w-4 h-4" />
-                Vyrobit {craftQuantity}x várku ({craftQuantity * 20} ks)
+                Vyrobit {craftQuantity}x várku ({craftQuantity * (recipe.yieldAmount ?? 20)} ks)
               </button>
             </div>
           );

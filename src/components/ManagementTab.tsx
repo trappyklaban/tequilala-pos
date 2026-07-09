@@ -177,6 +177,7 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
   const [newRecResultItemIcon, setNewRecResultItemIcon] = useState<string>("Wine");
   const [newRecResultItemMinStock, setNewRecResultItemMinStock] = useState<number>(5);
   const [newRecTime, setNewRecTime] = useState<number>(5);
+  const [newRecYieldAmount, setNewRecYieldAmount] = useState<number>(20);
   const [newRecIngredients, setNewRecIngredients] = useState<RecipeIngredient[]>([]);
   
   // Temporary ingredient row state
@@ -252,6 +253,7 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
         resultItemId: newRecResultItemId,
         ingredients: newRecIngredients,
         craftTimeSeconds: newRecTime,
+        yieldAmount: newRecYieldAmount,
       });
     } else {
       // Create new crafted product and recipe at once
@@ -271,6 +273,7 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
           resultItemId: "", // Will be assigned on server/app side
           ingredients: newRecIngredients,
           craftTimeSeconds: newRecTime,
+          yieldAmount: newRecYieldAmount,
         },
         newItemToCreate
       );
@@ -284,6 +287,7 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
     setNewRecResultItemIcon("Wine");
     setNewRecResultItemMinStock(5);
     setNewRecTime(5);
+    setNewRecYieldAmount(20);
     setNewRecIngredients([]);
     setTempIngId("");
     setTempIngQty(1.0);
@@ -867,7 +871,7 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
                         {/* Ingredients */}
                         <div className="space-y-1 bg-zinc-950/80 p-3 rounded-xl border border-tequila-border/30 text-[10px] text-gray-400 mb-3">
                           <span className="block text-[8px] font-bold text-zinc-500 uppercase tracking-wider mb-1">
-                            Suroviny (Na várku 20 ks):
+                            Suroviny (Na várku {recipe.yieldAmount ?? 20} ks):
                           </span>
                           {recipe.ingredients.map((ing) => {
                             const ingItem = items.find((it) => it.id === ing.itemId);
@@ -886,26 +890,26 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
                       {/* Cost and Stats */}
                       <div className="border-t border-tequila-border/30 pt-3 space-y-2 text-[10px]">
                         <div className="flex justify-between items-baseline">
-                          <span className="text-zinc-500 uppercase text-[9px] tracking-wide">Výroba várky (20 ks):</span>
+                          <span className="text-zinc-500 uppercase text-[9px] tracking-wide">Výroba várky ({recipe.yieldAmount ?? 20} ks):</span>
                           <span className="font-bold text-emerald-400">${prodCost.toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between items-baseline">
-                          <span className="text-zinc-500 uppercase text-[9px] tracking-wide">Tržba z várky (20 ks):</span>
-                          <span className="font-bold text-tequila-yellow">${(resultItem.sellPrice * 20).toFixed(2)}</span>
+                          <span className="text-zinc-500 uppercase text-[9px] tracking-wide">Tržba z várky ({recipe.yieldAmount ?? 20} ks):</span>
+                          <span className="font-bold text-tequila-yellow">${(resultItem.sellPrice * (recipe.yieldAmount ?? 20)).toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between items-baseline pt-1.5 border-t border-tequila-border/10 font-bold">
                           <span className="text-zinc-400 uppercase text-[9px] tracking-wide">Čistý zisk z várky:</span>
-                          <span className="text-emerald-300">${((resultItem.sellPrice * 20) - prodCost).toFixed(2)}</span>
+                          <span className="text-emerald-300">${((resultItem.sellPrice * (recipe.yieldAmount ?? 20)) - prodCost).toFixed(2)}</span>
                         </div>
 
                         {/* Kalkulace na 1 ks */}
                         <div className="bg-zinc-950/40 border border-tequila-border/20 rounded-xl p-2.5 mt-2 space-y-1">
                           <span className="block text-[8px] font-bold text-zinc-500 uppercase tracking-wider mb-1">
-                            Kalkulace na 1 ks drinku (Cena várky / 20):
+                            Kalkulace na 1 ks drinku (Cena várky / {recipe.yieldAmount ?? 20}):
                           </span>
                           <div className="flex justify-between text-[10px]">
                             <span className="text-zinc-400">Náklad na 1 ks:</span>
-                            <span className="font-bold text-emerald-400">${(prodCost / 20).toFixed(2)}</span>
+                            <span className="font-bold text-emerald-400">${(prodCost / (recipe.yieldAmount ?? 20)).toFixed(2)}</span>
                           </div>
                           <div className="flex justify-between text-[10px]">
                             <span className="text-zinc-400">Prodejní cena:</span>
@@ -913,13 +917,13 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
                           </div>
                           <div className="flex justify-between text-[10px] pt-1 border-t border-zinc-900/60 font-bold">
                             <span className="text-zinc-300">Čistý zisk / ks:</span>
-                            <span className="text-emerald-300">${(resultItem.sellPrice - (prodCost / 20)).toFixed(2)}</span>
+                            <span className="text-emerald-300">${(resultItem.sellPrice - (prodCost / (recipe.yieldAmount ?? 20))).toFixed(2)}</span>
                           </div>
                         </div>
 
                         <div className="flex justify-between text-zinc-650 text-[9px] pt-1">
                           <span>⏱️ Čas výroby: {recipe.craftTimeSeconds}s</span>
-                          <span>Marže: {resultItem.sellPrice * 20 > 0 ? (((resultItem.sellPrice * 20 - prodCost) / (resultItem.sellPrice * 20)) * 100).toFixed(0) : "0"}%</span>
+                          <span>Marže: {resultItem.sellPrice * (recipe.yieldAmount ?? 20) > 0 ? ((((resultItem.sellPrice * (recipe.yieldAmount ?? 20)) - prodCost) / (resultItem.sellPrice * (recipe.yieldAmount ?? 20))) * 100).toFixed(0) : "0"}%</span>
                         </div>
                       </div>
                     </div>
@@ -1102,19 +1106,35 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
                   </div>
                 )}
 
-                {/* Crafting Time */}
-                <div className="text-xs">
-                  <label className="block text-[9px] text-zinc-500 font-bold mb-1 uppercase tracking-wider">
-                    Čas míchání várky (sekundy)
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    required
-                    value={newRecTime}
-                    onChange={(e) => setNewRecTime(Number(e.target.value))}
-                    className="w-full bg-tequila-dark border border-tequila-border px-3 py-2 rounded-xl text-xs text-gray-100 font-mono focus:outline-none focus:border-tequila-orange"
-                  />
+                {/* Crafting Time and Yield Amount */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="text-xs">
+                    <label className="block text-[9px] text-zinc-500 font-bold mb-1 uppercase tracking-wider">
+                      Čas míchání (s)
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      required
+                      value={newRecTime}
+                      onChange={(e) => setNewRecTime(Number(e.target.value))}
+                      className="w-full bg-tequila-dark border border-tequila-border px-3 py-2 rounded-xl text-xs text-gray-100 font-mono focus:outline-none focus:border-tequila-orange"
+                    />
+                  </div>
+
+                  <div className="text-xs">
+                    <label className="block text-[9px] text-zinc-500 font-bold mb-1 uppercase tracking-wider">
+                      Kusů na várku
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      required
+                      value={newRecYieldAmount}
+                      onChange={(e) => setNewRecYieldAmount(Number(e.target.value))}
+                      className="w-full bg-tequila-dark border border-tequila-border px-3 py-2 rounded-xl text-xs text-gray-100 font-mono focus:outline-none focus:border-tequila-orange"
+                    />
+                  </div>
                 </div>
 
                 {/* Ingredients manager */}
