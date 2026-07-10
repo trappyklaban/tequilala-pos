@@ -254,7 +254,9 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
                 { id: "alcohol", label: "Alkohol" },
                 { id: "soft", label: "Nealko" },
                 { id: "garnish", label: "Ozdoby" },
-                { id: "drink", label: "Hotové" },
+                { id: "drink", label: "Míchané" },
+                { id: "shot", label: "Shoty" },
+                { id: "beer", label: "Piva" },
               ].map((cat) => (
                 <button
                   key={cat.id}
@@ -339,6 +341,8 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
                               {item.category === "soft" && "🥤 Nealko"}
                               {item.category === "garnish" && "🍋 Garnish"}
                               {item.category === "drink" && "🍹 Drink"}
+                              {item.category === "shot" && "🥃 Shot"}
+                              {item.category === "beer" && "🍺 Pivo"}
                               {item.category === "other" && "📦 Ostatní"}
                             </span>
                           </td>
@@ -759,7 +763,7 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
                 </select>
               </div>
 
-              {/* Category */}
+               {/* Category */}
               <div>
                 <label className="block text-[9px] text-zinc-500 font-bold uppercase tracking-wider mb-1">Kategorie</label>
                 <select
@@ -770,7 +774,9 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
                   <option value="alcohol" className="bg-zinc-950">🥃 Alkohol</option>
                   <option value="soft" className="bg-zinc-950">🥤 Nealko</option>
                   <option value="garnish" className="bg-zinc-950">🍋 Ozdoba / Citrus</option>
-                  <option value="drink" className="bg-zinc-950">🍹 Hotový drink</option>
+                  <option value="drink" className="bg-zinc-950">🍹 Míchaný drink</option>
+                  <option value="shot" className="bg-zinc-950">🥃 Shot (Panák)</option>
+                  <option value="beer" className="bg-zinc-950">🍺 Pivo</option>
                   <option value="other" className="bg-zinc-950">📦 Ostatní</option>
                 </select>
               </div>

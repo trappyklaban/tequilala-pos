@@ -1,4 +1,4 @@
-export type ItemCategory = "alcohol" | "soft" | "garnish" | "other" | "drink";
+export type ItemCategory = "alcohol" | "soft" | "garnish" | "other" | "drink" | "shot" | "beer";
 
 export interface InventoryItem {
   id: string;

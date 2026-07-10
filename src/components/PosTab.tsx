@@ -59,11 +59,19 @@ export const PosTab: React.FC<PosTabProps> = ({
 
   const filteredItems = sellableItems.filter((item) => {
     const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory =
-      selectedCategory === "all" ||
-      (selectedCategory === "beer" && item.category === "drink" && item.id.includes("beer")) ||
-      (selectedCategory === "shot" && (item.id.includes("shot") || item.id.includes("b52"))) ||
-      (selectedCategory === "mixed" && !item.id.includes("shot") && !item.id.includes("beer") && !item.id.includes("b52"));
+    
+    let matchesCategory = false;
+    if (selectedCategory === "all") {
+      matchesCategory = true;
+    } else if (selectedCategory === "beer") {
+      matchesCategory = item.category === "beer" || (item.category === "drink" && item.id.includes("beer"));
+    } else if (selectedCategory === "shot") {
+      matchesCategory = item.category === "shot" || item.id.includes("shot") || item.id.includes("b52");
+    } else if (selectedCategory === "mixed") {
+      matchesCategory = 
+        item.category === "drink" || 
+        (item.category !== "beer" && item.category !== "shot" && !item.id.includes("shot") && !item.id.includes("beer") && !item.id.includes("b52"));
+    }
     
     return matchesSearch && matchesCategory;
   });

@@ -33,6 +33,11 @@ interface ManagementTabProps {
   onResetDatabase: () => void;
   onAddRecipe: (recipe: Omit<Recipe, "id">, newItemToCreate?: Omit<InventoryItem, "id">) => void;
   onDeleteRecipe: (id: string) => void;
+  onUpdateRecipe?: (
+    recipeId: string,
+    updatedRecipe: Omit<Recipe, "id" | "resultItemId">,
+    updatedItem?: Partial<Omit<InventoryItem, "id" | "type" | "stock">>
+  ) => void;
   onDeleteShift?: (id: string) => void;
 }
 
@@ -57,6 +62,7 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
   onResetDatabase,
   onAddRecipe,
   onDeleteRecipe,
+  onUpdateRecipe,
   onDeleteShift,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<"employees" | "recipes" | "stats" | "history" | "backup">("employees");
@@ -172,6 +178,7 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
   const [importJson, setImportJson] = useState("");
 
   // Add Recipe Form State
+  const [editingRecipeId, setEditingRecipeId] = useState<string | null>(null);
   const [recipeTargetMode, setRecipeTargetMode] = useState<"existing" | "new">("existing");
   const [newRecResultItemId, setNewRecResultItemId] = useState("");
   const [newRecResultItemName, setNewRecResultItemName] = useState("");
@@ -186,6 +193,43 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
   // Temporary ingredient row state
   const [tempIngId, setTempIngId] = useState("");
   const [tempIngQty, setTempIngQty] = useState<number>(1.0);
+
+  const handleEditRecipeClick = (recipeId: string) => {
+    const recipe = recipes.find(r => r.id === recipeId);
+    if (!recipe) return;
+    const item = items.find(it => it.id === recipe.resultItemId);
+
+    setEditingRecipeId(recipeId);
+    setRecipeTargetMode("existing");
+    setNewRecResultItemId(recipe.resultItemId);
+    setNewRecTime(recipe.craftTimeSeconds);
+    setNewRecYieldAmount(recipe.yieldAmount ?? 20);
+    setNewRecIngredients(recipe.ingredients);
+
+    if (item) {
+      setNewRecResultItemName(item.name);
+      setNewRecResultItemSellPrice(item.sellPrice);
+      setNewRecResultItemCategory(item.category);
+      setNewRecResultItemIcon(item.iconName);
+      setNewRecResultItemMinStock(item.minStock);
+    }
+  };
+
+  const handleCancelEditRecipe = () => {
+    setEditingRecipeId(null);
+    setNewRecResultItemId("");
+    setNewRecResultItemName("");
+    setNewRecResultItemSellPrice(150);
+    setNewRecResultItemCategory("drink");
+    setNewRecResultItemIcon("Wine");
+    setNewRecResultItemMinStock(5);
+    setNewRecTime(5);
+    setNewRecYieldAmount(20);
+    setNewRecIngredients([]);
+    setTempIngId("");
+    setTempIngQty(1.0);
+    setRecipeTargetMode("existing");
+  };
 
   const handleAddIngredientRow = () => {
     if (!tempIngId) {
@@ -215,12 +259,12 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
   const handleCreateRecipe = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (recipeTargetMode === "existing" && !newRecResultItemId) {
+    if (!editingRecipeId && recipeTargetMode === "existing" && !newRecResultItemId) {
       triggerAlert("error", "Vyberte výsledný drink.");
       return;
     }
     
-    if (recipeTargetMode === "new") {
+    if (recipeTargetMode === "new" || editingRecipeId) {
       if (!newRecResultItemName.trim()) {
         triggerAlert("error", "Zadejte název nového produktu.");
         return;
@@ -229,8 +273,8 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
         triggerAlert("error", "Prodejní cena musí být větší než 0.");
         return;
       }
-      // Check if product with this name already exists in items
-      if (items.some(it => it.name.toLowerCase().trim() === newRecResultItemName.toLowerCase().trim())) {
+      // Check if product with this name already exists in items (only when creating new)
+      if (!editingRecipeId && items.some(it => it.name.toLowerCase().trim() === newRecResultItemName.toLowerCase().trim())) {
         triggerAlert("error", `Produkt s názvem "${newRecResultItemName}" již v katalogu existuje.`);
         return;
       }
@@ -242,6 +286,29 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
     }
     if (newRecTime <= 0) {
       triggerAlert("error", "Čas výroby musí být větší než 0 sekund.");
+      return;
+    }
+
+    if (editingRecipeId) {
+      if (onUpdateRecipe) {
+        onUpdateRecipe(
+          editingRecipeId,
+          {
+            ingredients: newRecIngredients,
+            craftTimeSeconds: newRecTime,
+            yieldAmount: newRecYieldAmount,
+          },
+          {
+            name: newRecResultItemName.trim(),
+            sellPrice: newRecResultItemSellPrice,
+            category: newRecResultItemCategory,
+            iconName: newRecResultItemIcon,
+            minStock: newRecResultItemMinStock,
+          }
+        );
+        triggerAlert("success", "Recept byl úspěšně upraven!");
+      }
+      handleCancelEditRecipe();
       return;
     }
 
@@ -856,18 +923,27 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
                               </button>
                             </div>
                           ) : (
-                            <button
-                              onClick={() => {
-                                setDeleteRecipeConfirmId(recipe.id);
-                                setTimeout(() => {
-                                  setDeleteRecipeConfirmId(prev => prev === recipe.id ? null : prev);
-                                }, 4000);
-                              }}
-                              className="p-1.5 bg-zinc-950 border border-zinc-900 hover:border-rose-500 text-zinc-500 hover:text-rose-500 rounded-lg transition-colors cursor-pointer"
-                              title="Smazat recept"
-                            >
-                              <LucideIcon name="Trash2" className="w-4 h-4" />
-                            </button>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={() => handleEditRecipeClick(recipe.id)}
+                                className="p-1.5 bg-zinc-950 border border-zinc-900 hover:border-tequila-orange text-zinc-500 hover:text-tequila-orange rounded-lg transition-colors cursor-pointer"
+                                title="Upravit recept"
+                              >
+                                <LucideIcon name="Pencil" className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setDeleteRecipeConfirmId(recipe.id);
+                                  setTimeout(() => {
+                                    setDeleteRecipeConfirmId(prev => prev === recipe.id ? null : prev);
+                                  }, 4000);
+                                }}
+                                className="p-1.5 bg-zinc-950 border border-zinc-900 hover:border-rose-500 text-zinc-500 hover:text-rose-500 rounded-lg transition-colors cursor-pointer"
+                                title="Smazat recept"
+                              >
+                                <LucideIcon name="Trash2" className="w-4 h-4" />
+                              </button>
+                            </div>
                           )}
                         </div>
 
@@ -936,92 +1012,192 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
             )}
           </div>
 
-          {/* Add Recipe Form Sidebar (1 col) */}
+          {/* Add/Edit Recipe Form Sidebar (1 col) */}
           <div className="lg:col-span-1">
             <div className="bg-tequila-card border border-tequila-border p-5 rounded-2xl space-y-5 sticky top-6 font-mono">
-              <h3 className="font-display font-bold text-gray-200 uppercase tracking-wider text-xs flex items-center gap-2 border-b border-tequila-border pb-3">
-                <LucideIcon name="PlusCircle" className="w-4 h-4 text-tequila-orange" />
-                Nový výrobní recept
+              <h3 className="font-display font-bold text-gray-200 uppercase tracking-wider text-xs flex items-center justify-between border-b border-tequila-border pb-3">
+                <div className="flex items-center gap-2">
+                  <LucideIcon name={editingRecipeId ? "Pencil" : "PlusCircle"} className="w-4 h-4 text-tequila-orange" />
+                  <span>{editingRecipeId ? "Upravit recept" : "Nový výrobní recept"}</span>
+                </div>
+                {editingRecipeId && (
+                  <button
+                    type="button"
+                    onClick={handleCancelEditRecipe}
+                    className="text-[10px] bg-zinc-900 border border-zinc-800 hover:border-zinc-700 px-2 py-1 rounded text-zinc-400 hover:text-white uppercase font-bold cursor-pointer transition-colors"
+                  >
+                    Zrušit
+                  </button>
+                )}
               </h3>
 
               <form onSubmit={handleCreateRecipe} className="space-y-4">
-                {/* Mode Selector */}
-                <div className="text-xs space-y-1.5">
-                  <label className="block text-[9px] text-zinc-500 font-bold uppercase tracking-wider">
-                    Metoda výběru produktu
-                  </label>
-                  <div className="flex bg-zinc-950/60 p-1 rounded-xl border border-tequila-border/40 text-[10px] font-bold">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setRecipeTargetMode("existing");
-                        setNewRecResultItemId("");
-                        setNewRecResultItemName("");
-                      }}
-                      className={`flex-1 py-1.5 rounded-lg text-center transition-all cursor-pointer ${
-                        recipeTargetMode === "existing"
-                          ? "bg-tequila-orange text-white"
-                          : "text-zinc-400 hover:text-white"
-                      }`}
-                    >
-                      Z katalogu
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setRecipeTargetMode("new");
-                        setNewRecResultItemId("");
-                        setNewRecResultItemName("");
-                      }}
-                      className={`flex-1 py-1.5 rounded-lg text-center transition-all cursor-pointer ${
-                        recipeTargetMode === "new"
-                          ? "bg-tequila-orange text-white"
-                          : "text-zinc-400 hover:text-white"
-                      }`}
-                    >
-                      Napsat název
-                    </button>
-                  </div>
-                </div>
+                {editingRecipeId ? (
+                  /* Edit Mode Product Details */
+                  <div className="space-y-3.5 border border-amber-500/30 p-3.5 rounded-xl bg-amber-950/10">
+                    <span className="block text-[9px] font-bold text-amber-500 uppercase tracking-wider">
+                      Detaily výsledného produktu
+                    </span>
 
-                {recipeTargetMode === "existing" ? (
-                  /* Resulting Drink */
-                  <div className="text-xs">
-                    <label className="block text-[9px] text-zinc-500 font-bold mb-1 uppercase tracking-wider">
-                      Cílový míchaný produkt (drink)
-                    </label>
-                    <select
-                      required={recipeTargetMode === "existing"}
-                      value={newRecResultItemId}
-                      onChange={(e) => {
-                        setNewRecResultItemId(e.target.value);
-                        // Try to auto-set temp ingredient id if empty
-                        const rawItems = items.filter(it => it.type === "raw");
-                        if (rawItems.length > 0 && !tempIngId) {
-                          setTempIngId(rawItems[0].id);
-                        }
-                      }}
-                      className="w-full bg-tequila-dark border border-tequila-border px-3 py-2 rounded-xl text-xs text-gray-200 focus:outline-none focus:border-tequila-orange"
-                    >
-                      <option value="" disabled>Vyberte produkt z katalogu...</option>
-                      {items
-                        .filter((it) => it.type === "crafted")
-                        .map((it) => (
-                          <option key={it.id} value={it.id} className="bg-tequila-card">
-                            {it.name} (${it.sellPrice}/ks)
-                          </option>
-                        ))}
-                    </select>
-                    <p className="text-[9px] text-zinc-600 mt-1">
-                      Musí se jednat o položku typu "Míchaný" s definovanou prodejní cenou.
-                    </p>
+                    <div className="text-xs">
+                      <label className="block text-[8px] text-zinc-500 font-bold mb-1 uppercase">
+                        Název produktu na serveru
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Např. Sex on the Beach..."
+                        value={newRecResultItemName}
+                        onChange={(e) => setNewRecResultItemName(e.target.value)}
+                        className="w-full bg-tequila-dark border border-tequila-border px-3 py-2 rounded-xl text-xs text-gray-100 focus:outline-none focus:border-tequila-orange"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="text-xs">
+                        <label className="block text-[8px] text-zinc-500 font-bold mb-1 uppercase">
+                          Prodejní cena ($)
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          required
+                          value={newRecResultItemSellPrice}
+                          onChange={(e) => setNewRecResultItemSellPrice(Number(e.target.value))}
+                          className="w-full bg-tequila-dark border border-tequila-border px-3 py-2 rounded-xl text-xs text-gray-100 font-mono focus:outline-none focus:border-tequila-orange"
+                        />
+                      </div>
+
+                      <div className="text-xs">
+                        <label className="block text-[8px] text-zinc-500 font-bold mb-1 uppercase">
+                          Minimální zásoba
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          required
+                          value={newRecResultItemMinStock}
+                          onChange={(e) => setNewRecResultItemMinStock(Number(e.target.value))}
+                          className="w-full bg-tequila-dark border border-tequila-border px-3 py-2 rounded-xl text-xs text-gray-100 font-mono focus:outline-none focus:border-tequila-orange"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="text-xs">
+                        <label className="block text-[8px] text-zinc-500 font-bold mb-1 uppercase">
+                          Kategorie
+                        </label>
+                        <select
+                          value={newRecResultItemCategory}
+                          onChange={(e) => setNewRecResultItemCategory(e.target.value as ItemCategory)}
+                          className="w-full bg-tequila-dark border border-tequila-border px-2 py-2 rounded-xl text-[11px] text-gray-300 focus:outline-none focus:border-tequila-orange"
+                        >
+                          <option value="drink">🍹 Míchaný drink</option>
+                          <option value="shot">🥃 Shot (Panák)</option>
+                          <option value="beer">🍺 Pivo</option>
+                          <option value="alcohol">🥃 Surovina: Alkohol</option>
+                          <option value="soft">🥤 Surovina: Nealko</option>
+                          <option value="other">📦 Ostatní</option>
+                        </select>
+                      </div>
+
+                      <div className="text-xs">
+                        <label className="block text-[8px] text-zinc-500 font-bold mb-1 uppercase">
+                          Ikona
+                        </label>
+                        <select
+                          value={newRecResultItemIcon}
+                          onChange={(e) => setNewRecResultItemIcon(e.target.value)}
+                          className="w-full bg-tequila-dark border border-tequila-border px-2 py-2 rounded-xl text-[11px] text-gray-300 focus:outline-none focus:border-tequila-orange"
+                        >
+                          <option value="Wine">🍷 Sklenice</option>
+                          <option value="Beer">🍺 Pivo</option>
+                          <option value="GlassWater">🥃 Panák</option>
+                          <option value="CupSoda">🥤 Kelímek</option>
+                        </select>
+                      </div>
+                    </div>
                   </div>
                 ) : (
-                  /* Create New Product Details */
-                  <div className="space-y-3.5 border border-tequila-border/40 p-3.5 rounded-xl bg-zinc-950/20">
-                    <span className="block text-[9px] font-bold text-tequila-orange uppercase tracking-wider">
-                      Nový produkt (FiveM)
-                    </span>
+                  <>
+                    {/* Mode Selector */}
+                    <div className="text-xs space-y-1.5">
+                      <label className="block text-[9px] text-zinc-500 font-bold uppercase tracking-wider">
+                        Metoda výběru produktu
+                      </label>
+                      <div className="flex bg-zinc-950/60 p-1 rounded-xl border border-tequila-border/40 text-[10px] font-bold">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRecipeTargetMode("existing");
+                            setNewRecResultItemId("");
+                            setNewRecResultItemName("");
+                          }}
+                          className={`flex-1 py-1.5 rounded-lg text-center transition-all cursor-pointer ${
+                            recipeTargetMode === "existing"
+                              ? "bg-tequila-orange text-white"
+                              : "text-zinc-400 hover:text-white"
+                          }`}
+                        >
+                          Z katalogu
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRecipeTargetMode("new");
+                            setNewRecResultItemId("");
+                            setNewRecResultItemName("");
+                          }}
+                          className={`flex-1 py-1.5 rounded-lg text-center transition-all cursor-pointer ${
+                            recipeTargetMode === "new"
+                              ? "bg-tequila-orange text-white"
+                              : "text-zinc-400 hover:text-white"
+                          }`}
+                        >
+                          Napsat název
+                        </button>
+                      </div>
+                    </div>
+
+                    {recipeTargetMode === "existing" ? (
+                      /* Resulting Drink */
+                      <div className="text-xs">
+                        <label className="block text-[9px] text-zinc-500 font-bold mb-1 uppercase tracking-wider">
+                          Cílový míchaný produkt (drink)
+                        </label>
+                        <select
+                          required={recipeTargetMode === "existing"}
+                          value={newRecResultItemId}
+                          onChange={(e) => {
+                            setNewRecResultItemId(e.target.value);
+                            // Try to auto-set temp ingredient id if empty
+                            const rawItems = items.filter(it => it.type === "raw");
+                            if (rawItems.length > 0 && !tempIngId) {
+                              setTempIngId(rawItems[0].id);
+                            }
+                          }}
+                          className="w-full bg-tequila-dark border border-tequila-border px-3 py-2 rounded-xl text-xs text-gray-200 focus:outline-none focus:border-tequila-orange"
+                        >
+                          <option value="" disabled>Vyberte produkt z katalogu...</option>
+                          {items
+                            .filter((it) => it.type === "crafted")
+                            .map((it) => (
+                              <option key={it.id} value={it.id} className="bg-tequila-card">
+                                {it.name} (${it.sellPrice}/ks)
+                              </option>
+                            ))}
+                        </select>
+                        <p className="text-[9px] text-zinc-600 mt-1">
+                          Musí se jednat o položku typu "Míchaný" s definovanou prodejní cenou.
+                        </p>
+                      </div>
+                    ) : (
+                      /* Create New Product Details */
+                      <div className="space-y-3.5 border border-tequila-border/40 p-3.5 rounded-xl bg-zinc-950/20">
+                        <span className="block text-[9px] font-bold text-tequila-orange uppercase tracking-wider">
+                          Nový produkt (FiveM)
+                        </span>
 
                     <div className="text-xs">
                       <label className="block text-[8px] text-zinc-500 font-bold mb-1 uppercase">
@@ -1083,9 +1259,11 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
                           onChange={(e) => setNewRecResultItemCategory(e.target.value as ItemCategory)}
                           className="w-full bg-tequila-dark border border-tequila-border px-2 py-2 rounded-xl text-[11px] text-gray-300 focus:outline-none focus:border-tequila-orange"
                         >
-                          <option value="drink">🍹 Míchaný</option>
-                          <option value="alcohol">🍺 Alkohol</option>
-                          <option value="soft">🥤 Nealko</option>
+                          <option value="drink">🍹 Míchaný drink</option>
+                          <option value="shot">🥃 Shot (Panák)</option>
+                          <option value="beer">🍺 Pivo</option>
+                          <option value="alcohol">🥃 Surovina: Alkohol</option>
+                          <option value="soft">🥤 Surovina: Nealko</option>
                           <option value="other">📦 Ostatní</option>
                         </select>
                       </div>
@@ -1108,6 +1286,8 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
                     </div>
                   </div>
                 )}
+              </>
+            )}
 
                 {/* Crafting Time and Yield Amount */}
                 <div className="grid grid-cols-2 gap-2">
@@ -1225,23 +1405,37 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
                 </div>
 
                 {/* Final Submit */}
-                <button
-                  type="submit"
-                  disabled={
-                    newRecIngredients.length === 0 ||
-                    (recipeTargetMode === "existing" && !newRecResultItemId) ||
-                    (recipeTargetMode === "new" && !newRecResultItemName.trim())
-                  }
-                  className={`w-full py-3.5 font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer ${
-                    newRecIngredients.length === 0 ||
-                    (recipeTargetMode === "existing" && !newRecResultItemId) ||
-                    (recipeTargetMode === "new" && !newRecResultItemName.trim())
-                      ? "bg-zinc-900 border border-zinc-800 text-zinc-650 cursor-not-allowed"
-                      : "bg-tequila-orange hover:bg-tequila-orange/90 text-white"
-                  }`}
-                >
-                  Uložit výrobní recept
-                </button>
+                <div className="space-y-2">
+                  <button
+                    type="submit"
+                    disabled={
+                      newRecIngredients.length === 0 ||
+                      (!editingRecipeId && recipeTargetMode === "existing" && !newRecResultItemId) ||
+                      (!editingRecipeId && recipeTargetMode === "new" && !newRecResultItemName.trim()) ||
+                      (editingRecipeId && !newRecResultItemName.trim())
+                    }
+                    className={`w-full py-3.5 font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer ${
+                      newRecIngredients.length === 0 ||
+                      (!editingRecipeId && recipeTargetMode === "existing" && !newRecResultItemId) ||
+                      (!editingRecipeId && recipeTargetMode === "new" && !newRecResultItemName.trim()) ||
+                      (editingRecipeId && !newRecResultItemName.trim())
+                        ? "bg-zinc-900 border border-zinc-800 text-zinc-650 cursor-not-allowed"
+                        : "bg-tequila-orange hover:bg-tequila-orange/90 text-white animate-pulse-subtle"
+                    }`}
+                  >
+                    {editingRecipeId ? "Uložit změny receptu" : "Uložit výrobní recept"}
+                  </button>
+
+                  {editingRecipeId && (
+                    <button
+                      type="button"
+                      onClick={handleCancelEditRecipe}
+                      className="w-full py-2 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer text-center"
+                    >
+                      Zrušit úpravu
+                    </button>
+                  )}
+                </div>
               </form>
             </div>
           </div>

@@ -609,6 +609,46 @@ export default function App() {
     });
   };
 
+  const handleUpdateRecipe = (
+    recipeId: string,
+    updatedRecipe: Omit<Recipe, "id" | "resultItemId">,
+    updatedItem?: Partial<Omit<InventoryItem, "id" | "type" | "stock">>
+  ) => {
+    const recipe = state.recipes.find((r) => r.id === recipeId);
+    if (!recipe) return;
+
+    const updatedRecipes = state.recipes.map((r) => {
+      if (r.id === recipeId) {
+        return {
+          ...r,
+          ingredients: updatedRecipe.ingredients,
+          craftTimeSeconds: updatedRecipe.craftTimeSeconds,
+          yieldAmount: updatedRecipe.yieldAmount,
+        };
+      }
+      return r;
+    });
+
+    let updatedItems = [...state.items];
+    if (updatedItem && recipe.resultItemId) {
+      updatedItems = state.items.map((it) => {
+        if (it.id === recipe.resultItemId) {
+          return {
+            ...it,
+            ...updatedItem,
+          };
+        }
+        return it;
+      });
+    }
+
+    saveState({
+      ...state,
+      recipes: updatedRecipes,
+      items: updatedItems,
+    });
+  };
+
   const handleDeleteShift = (shiftId: string) => {
     const shift = (state.shifts || []).find((s) => s.id === shiftId);
     if (!shift) return;
@@ -1140,6 +1180,7 @@ export default function App() {
             onResetDatabase={handleResetDatabase}
             onAddRecipe={handleAddRecipe}
             onDeleteRecipe={handleDeleteRecipe}
+            onUpdateRecipe={handleUpdateRecipe}
             onDeleteShift={handleDeleteShift}
           />
         )}
