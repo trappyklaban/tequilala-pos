@@ -33,6 +33,7 @@ interface ManagementTabProps {
   onResetDatabase: () => void;
   onAddRecipe: (recipe: Omit<Recipe, "id">, newItemToCreate?: Omit<InventoryItem, "id">) => void;
   onDeleteRecipe: (id: string) => void;
+  onDeleteShift?: (id: string) => void;
 }
 
 export const ManagementTab: React.FC<ManagementTabProps> = ({
@@ -56,9 +57,11 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
   onResetDatabase,
   onAddRecipe,
   onDeleteRecipe,
+  onDeleteShift,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<"employees" | "recipes" | "stats" | "history" | "backup">("employees");
   const [expandedShiftIds, setExpandedShiftIds] = useState<Record<string, boolean>>({});
+  const [confirmDeleteShiftId, setConfirmDeleteShiftId] = useState<string | null>(null);
 
   // Export Subsidies state
   const todayStr = new Date().toISOString().substring(0, 7); // "YYYY-MM"
@@ -1567,13 +1570,49 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
                         >
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono">
                             <div>
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <span className="font-bold text-white uppercase tracking-tight text-sm">
                                   {shift.bartenderName}
                                 </span>
                                 <span className="text-[9px] bg-zinc-900 border border-zinc-800 text-zinc-400 font-bold px-1.5 py-0.5 rounded uppercase">
                                   Ukončená směna
                                 </span>
+                                {onDeleteShift && (
+                                  <div className="flex items-center ml-2">
+                                    {confirmDeleteShiftId === shift.id ? (
+                                      <div className="flex items-center gap-1.5 bg-rose-950/40 border border-rose-500/30 px-2 py-0.5 rounded-md text-[9px] font-bold text-rose-400">
+                                        <span>Smazat vč. prodejů?</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            onDeleteShift(shift.id);
+                                            setConfirmDeleteShiftId(null);
+                                          }}
+                                          className="text-rose-200 hover:text-white underline cursor-pointer"
+                                        >
+                                          Ano
+                                        </button>
+                                        <span className="text-rose-500/50">|</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => setConfirmDeleteShiftId(null)}
+                                          className="text-zinc-400 hover:text-white cursor-pointer"
+                                        >
+                                          Ne
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => setConfirmDeleteShiftId(shift.id)}
+                                        className="text-zinc-500 hover:text-rose-400 p-1 rounded-md hover:bg-rose-950/10 transition-colors cursor-pointer"
+                                        title="Smazat směnu (včetně prodejů, obnovení zásob a odečtení provizí)"
+                                      >
+                                        <LucideIcon name="Trash2" className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                               <p className="text-zinc-500 text-[10px] mt-1.5">
                                 Od: {new Date(shift.startTime).toLocaleString("cs-CZ")}

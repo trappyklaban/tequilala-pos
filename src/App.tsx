@@ -609,6 +609,60 @@ export default function App() {
     });
   };
 
+  const handleDeleteShift = (shiftId: string) => {
+    const shift = (state.shifts || []).find((s) => s.id === shiftId);
+    if (!shift) return;
+
+    // Find sales associated with this shift
+    const shiftSales = shift.sales || state.sales.filter(
+      (s) => s.bartenderId === shift.bartenderId && s.timestamp >= shift.startTime && s.timestamp <= shift.endTime
+    );
+
+    // Reverse item stock updates
+    let updatedItems = [...state.items];
+    for (const sale of shiftSales) {
+      for (const cartItem of sale.items) {
+        const itemIndex = updatedItems.findIndex((it) => it.id === cartItem.itemId);
+        if (itemIndex !== -1) {
+          updatedItems[itemIndex] = {
+            ...updatedItems[itemIndex],
+            stock: updatedItems[itemIndex].stock + cartItem.quantity,
+          };
+        }
+      }
+    }
+
+    // Filter out the deleted sales from state.sales
+    const shiftSaleIds = new Set(shiftSales.map((s) => s.id));
+    const updatedSales = state.sales.filter((s) => !shiftSaleIds.has(s.id));
+
+    // Deduct the sales total from the cash register
+    const updatedRegisterBalance = Math.max(0, state.registerBalance - shift.salesTotal);
+
+    // Adjust the bartender's totalCommissionEarned
+    const updatedBartenders = state.bartenders.map((b) => {
+      if (b.id === shift.bartenderId) {
+        return {
+          ...b,
+          totalCommissionEarned: Math.max(0, b.totalCommissionEarned - shift.commissionEarned),
+        };
+      }
+      return b;
+    });
+
+    // Remove the shift log
+    const updatedShifts = (state.shifts || []).filter((s) => s.id !== shiftId);
+
+    saveState({
+      ...state,
+      items: updatedItems,
+      sales: updatedSales,
+      registerBalance: updatedRegisterBalance,
+      bartenders: updatedBartenders,
+      shifts: updatedShifts,
+    });
+  };
+
   // 7. ADD EMPLOYEES & COMMISSION MANAGER
   const handleAddBartender = (name: string, rate: number, pin?: string, role: "manager" | "barman" = "barman") => {
     const id = `bart_${name
@@ -1086,6 +1140,7 @@ export default function App() {
             onResetDatabase={handleResetDatabase}
             onAddRecipe={handleAddRecipe}
             onDeleteRecipe={handleDeleteRecipe}
+            onDeleteShift={handleDeleteShift}
           />
         )}
       </main>
