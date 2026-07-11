@@ -284,10 +284,6 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
       triggerAlert("error", "Recept musí obsahovat alespoň jednu ingredienci.");
       return;
     }
-    if (newRecTime <= 0) {
-      triggerAlert("error", "Čas výroby musí být větší než 0 sekund.");
-      return;
-    }
 
     if (editingRecipeId) {
       if (onUpdateRecipe) {
@@ -1000,8 +996,7 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
                           </div>
                         </div>
 
-                        <div className="flex justify-between text-zinc-650 text-[9px] pt-1">
-                          <span>⏱️ Čas výroby: {recipe.craftTimeSeconds}s</span>
+                        <div className="flex justify-end text-zinc-650 text-[9px] pt-1">
                           <span>Marže: {resultItem.sellPrice * (recipe.yieldAmount ?? 20) > 0 ? ((((resultItem.sellPrice * (recipe.yieldAmount ?? 20)) - prodCost) / (resultItem.sellPrice * (recipe.yieldAmount ?? 20))) * 100).toFixed(0) : "0"}%</span>
                         </div>
                       </div>
@@ -1289,35 +1284,19 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
               </>
             )}
 
-                {/* Crafting Time and Yield Amount */}
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="text-xs">
-                    <label className="block text-[9px] text-zinc-500 font-bold mb-1 uppercase tracking-wider">
-                      Čas míchání (s)
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      required
-                      value={newRecTime}
-                      onChange={(e) => setNewRecTime(Number(e.target.value))}
-                      className="w-full bg-tequila-dark border border-tequila-border px-3 py-2 rounded-xl text-xs text-gray-100 font-mono focus:outline-none focus:border-tequila-orange"
-                    />
-                  </div>
-
-                  <div className="text-xs">
-                    <label className="block text-[9px] text-zinc-500 font-bold mb-1 uppercase tracking-wider">
-                      Kusů na várku
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      required
-                      value={newRecYieldAmount}
-                      onChange={(e) => setNewRecYieldAmount(Number(e.target.value))}
-                      className="w-full bg-tequila-dark border border-tequila-border px-3 py-2 rounded-xl text-xs text-gray-100 font-mono focus:outline-none focus:border-tequila-orange"
-                    />
-                  </div>
+                {/* Yield Amount */}
+                <div className="text-xs">
+                  <label className="block text-[9px] text-zinc-500 font-bold mb-1 uppercase tracking-wider">
+                    Kusů na várku
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={newRecYieldAmount}
+                    onChange={(e) => setNewRecYieldAmount(Number(e.target.value))}
+                    className="w-full bg-tequila-dark border border-tequila-border px-3 py-2 rounded-xl text-xs text-gray-100 font-mono focus:outline-none focus:border-tequila-orange"
+                  />
                 </div>
 
                 {/* Ingredients manager */}

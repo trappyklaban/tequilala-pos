@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from "react";
-import { InventoryItem, Recipe, RecipeIngredient } from "../types";
+import React, { useState } from "react";
+import { InventoryItem, Recipe } from "../types";
 import { LucideIcon } from "./LucideIcon";
 
 interface CraftingTabProps {
@@ -8,26 +8,8 @@ interface CraftingTabProps {
   onCraftSuccess: (recipeId: string, quantity: number) => void;
 }
 
-interface ActiveCraftState {
-  recipeId: string;
-  recipeName: string;
-  quantity: number;
-  totalDurationMs: number;
-  elapsedMs: number;
-  stepMessage: string;
-}
-
 export const CraftingTab: React.FC<CraftingTabProps> = ({ items, recipes, onCraftSuccess }) => {
-  const [activeCraft, setActiveCraft] = useState<ActiveCraftState | null>(null);
   const [craftQuantity, setCraftQuantity] = useState<number>(1);
-  const craftTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Clean timer on unmount
-  useEffect(() => {
-    return () => {
-      if (craftTimerRef.current) clearInterval(craftTimerRef.current);
-    };
-  }, []);
 
   // Map item ID to actual item helper
   const getItem = (id: string): InventoryItem | undefined => {
@@ -57,19 +39,7 @@ export const CraftingTab: React.FC<CraftingTabProps> = ({ items, recipes, onCraf
     };
   };
 
-  // Get professional bartender RP messages depending on completion %
-  const getRPMessage = (percent: number, drinkName: string): string => {
-    if (percent < 15) return `🥃 Připravuji sklenice a čistý led na ${drinkName}...`;
-    if (percent < 35) return `🍋 Krájím čerstvé ozdoby a citrusy...`;
-    if (percent < 60) return `🧪 Odměřuji a nalévám alkoholické složky do šejkru...`;
-    if (percent < 80) return `⚡ Mixuji s ledem, šejkuji pořádně divoce!`;
-    if (percent < 95) return `🍹 Cedím přes barové sítko a doplňuji nealko...`;
-    return `✨ Hotovo! Přidávám brčko, ozdobu a servíruji na bar...`;
-  };
-
   const handleStartCraft = (recipe: Recipe) => {
-    if (activeCraft) return; // Busy mixing
-
     const resultItem = getItem(recipe.resultItemId);
     if (!resultItem) return;
 
@@ -82,89 +52,13 @@ export const CraftingTab: React.FC<CraftingTabProps> = ({ items, recipes, onCraf
       return;
     }
 
-    // Start simulated crafting sequence
-    const durationMs = recipe.craftTimeSeconds * 1000 * craftQuantity;
-    const intervalMs = 100;
-    
-    setActiveCraft({
-      recipeId: recipe.id,
-      recipeName: resultItem.name,
-      quantity: craftQuantity,
-      totalDurationMs: durationMs,
-      elapsedMs: 0,
-      stepMessage: getRPMessage(0, resultItem.name),
-    });
-
-    let currentElapsed = 0;
-    craftTimerRef.current = setInterval(() => {
-      currentElapsed += intervalMs;
-      
-      if (currentElapsed >= durationMs) {
-        if (craftTimerRef.current) clearInterval(craftTimerRef.current);
-        
-        // Finalize craft in parent state
-        onCraftSuccess(recipe.id, craftQuantity);
-        
-        setActiveCraft(null);
-        setCraftQuantity(1); // Reset qty
-      } else {
-        const percent = (currentElapsed / durationMs) * 100;
-        setActiveCraft((prev) => {
-          if (!prev) return null;
-          return {
-            ...prev,
-            elapsedMs: currentElapsed,
-            stepMessage: getRPMessage(percent, resultItem.name),
-          };
-        });
-      }
-    }, intervalMs);
+    // Finalize craft in parent state instantly
+    onCraftSuccess(recipe.id, craftQuantity);
+    setCraftQuantity(1); // Reset qty
   };
 
   return (
     <div className="space-y-6">
-      {/* Active Crafting Progress Bar / Mixer Overlay */}
-      {activeCraft && (
-        <div className="bg-zinc-950 border border-tequila-orange rounded-lg p-5 shadow-lg relative overflow-hidden font-mono">
-          {/* Shaker glow background effect */}
-          <div className="absolute inset-0 bg-gradient-to-r from-tequila-orange/5 via-transparent to-tequila-orange/5"></div>
-          
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="space-y-1.5 flex-1">
-              <span className="text-[9px] uppercase font-bold tracking-wider text-tequila-orange bg-tequila-orange/10 px-2.5 py-0.5 rounded border border-tequila-orange/20">
-                PROBÍHÁ MÍCHÁNÍ (DÍLNA)
-              </span>
-              <h2 className="text-base font-bold text-white uppercase tracking-tight">
-                Vyrábím {activeCraft.quantity}x várku ({activeCraft.quantity * (recipes.find(r => r.id === activeCraft.recipeId)?.yieldAmount ?? 20)} ks) {activeCraft.recipeName}
-              </h2>
-              <p className="text-xs text-zinc-400 italic">
-                {activeCraft.stepMessage}
-              </p>
-            </div>
-
-            {/* Simulated Shaker Icon Spinner */}
-            <div className="flex flex-col items-center justify-center gap-1.5 shrink-0">
-              <div className="p-3 rounded bg-tequila-orange text-black animate-spin duration-1000">
-                <LucideIcon name="ChefHat" className="w-6 h-6" />
-              </div>
-              <span className="font-mono text-[10px] text-zinc-400">
-                {Math.round((activeCraft.elapsedMs / activeCraft.totalDurationMs) * 100)} %
-              </span>
-            </div>
-          </div>
-
-          {/* Progress Bar Track */}
-          <div className="relative h-2 bg-zinc-900 rounded overflow-hidden mt-4">
-            <div
-              className="absolute left-0 top-0 h-full bg-tequila-orange transition-all duration-100"
-              style={{
-                width: `${(activeCraft.elapsedMs / activeCraft.totalDurationMs) * 100}%`,
-              }}
-            ></div>
-          </div>
-        </div>
-      )}
-
       {/* Intro and controls */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-tequila-card border border-tequila-border p-5 rounded-lg">
         <div>
@@ -185,7 +79,6 @@ export const CraftingTab: React.FC<CraftingTabProps> = ({ items, recipes, onCraf
           <div className="flex items-center gap-2">
             <button
               onClick={() => setCraftQuantity(Math.max(1, craftQuantity - 1))}
-              disabled={!!activeCraft}
               className="w-7 h-7 bg-zinc-900 hover:bg-zinc-850 text-gray-300 rounded flex items-center justify-center font-bold active:scale-95 disabled:opacity-40 cursor-pointer"
             >
               -
@@ -195,7 +88,6 @@ export const CraftingTab: React.FC<CraftingTabProps> = ({ items, recipes, onCraf
             </span>
             <button
               onClick={() => setCraftQuantity(craftQuantity + 1)}
-              disabled={!!activeCraft}
               className="w-7 h-7 bg-zinc-900 hover:bg-zinc-850 text-gray-300 rounded flex items-center justify-center font-bold active:scale-95 disabled:opacity-40 cursor-pointer"
             >
               +
@@ -210,15 +102,13 @@ export const CraftingTab: React.FC<CraftingTabProps> = ({ items, recipes, onCraf
           const resultItem = getItem(recipe.resultItemId);
           if (!resultItem) return null;
 
-          const { hasEnough, missing } = checkIngredientsStock(recipe, craftQuantity);
+          const { hasEnough } = checkIngredientsStock(recipe, craftQuantity);
 
           return (
             <div
               key={recipe.id}
               className={`bg-tequila-card border rounded-lg p-5 flex flex-col justify-between transition-all duration-300 ${
-                activeCraft
-                  ? "opacity-50 pointer-events-none border-tequila-border"
-                  : !hasEnough
+                !hasEnough
                   ? "border-tequila-border/60"
                   : "border-tequila-border hover:border-tequila-yellow hover:bg-zinc-950/40"
               }`}
@@ -248,12 +138,6 @@ export const CraftingTab: React.FC<CraftingTabProps> = ({ items, recipes, onCraf
                           }, 0)).toFixed(2)}
                         </span>
                       </div>
-                    </div>
-                  </div>
-
-                  <div className="text-right">
-                    <div className="flex items-center gap-1 justify-end text-[10px] text-zinc-500 font-mono">
-                      ⏱️ {recipe.craftTimeSeconds * craftQuantity}s
                     </div>
                   </div>
                 </div>
@@ -310,7 +194,6 @@ export const CraftingTab: React.FC<CraftingTabProps> = ({ items, recipes, onCraf
               {/* Action mix button */}
               <button
                 onClick={() => handleStartCraft(recipe)}
-                disabled={!!activeCraft}
                 className={`w-full py-2.5 rounded font-mono font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
                   !hasEnough
                     ? "bg-zinc-900 text-zinc-600 border border-zinc-800 cursor-not-allowed"
