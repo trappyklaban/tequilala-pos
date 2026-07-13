@@ -224,6 +224,17 @@ export const INITIAL_ITEMS: InventoryItem[] = [
     iconName: "Sparkles",
     category: "drink",
   },
+  {
+    id: "food_quesadilla",
+    name: "Tequila-la Quesadilla",
+    type: "crafted",
+    stock: 12,
+    minStock: 3,
+    purchasePrice: 45,
+    sellPrice: 150,
+    iconName: "ChefHat",
+    category: "food",
+  },
 ];
 
 export const INITIAL_RECIPES: Recipe[] = [

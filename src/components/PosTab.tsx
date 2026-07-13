@@ -52,9 +52,9 @@ export const PosTab: React.FC<PosTabProps> = ({
   // Notification state
   const [alert, setAlert] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
-  // Filter sellable items (only crafted drinks or items with sellPrice > 0)
+  // Filter sellable items (only crafted drinks, food, or items with sellPrice > 0)
   const sellableItems = items.filter(
-    (item) => item.type === "crafted" && item.sellPrice > 0
+    (item) => (item.type === "crafted" || item.category === "food") && item.sellPrice > 0
   );
 
   const filteredItems = sellableItems.filter((item) => {
@@ -67,10 +67,13 @@ export const PosTab: React.FC<PosTabProps> = ({
       matchesCategory = item.category === "beer" || (item.category === "drink" && item.id.includes("beer"));
     } else if (selectedCategory === "shot") {
       matchesCategory = item.category === "shot" || item.id.includes("shot") || item.id.includes("b52");
+    } else if (selectedCategory === "food") {
+      matchesCategory = item.category === "food";
     } else if (selectedCategory === "mixed") {
       matchesCategory = 
-        item.category === "drink" || 
-        (item.category !== "beer" && item.category !== "shot" && !item.id.includes("shot") && !item.id.includes("beer") && !item.id.includes("b52"));
+        (item.category === "drink" || 
+        (item.category !== "beer" && item.category !== "shot" && !item.id.includes("shot") && !item.id.includes("beer") && !item.id.includes("b52"))) &&
+        item.category !== "food";
     }
     
     return matchesSearch && matchesCategory;
@@ -254,6 +257,7 @@ export const PosTab: React.FC<PosTabProps> = ({
                 { id: "shot", label: "Shoty" },
                 { id: "mixed", label: "Míchané" },
                 { id: "beer", label: "Piva" },
+                { id: "food", label: "Jídlo" },
               ].map((cat) => (
                 <button
                   key={cat.id}

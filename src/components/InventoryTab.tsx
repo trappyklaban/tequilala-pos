@@ -257,6 +257,7 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
                 { id: "drink", label: "Míchané" },
                 { id: "shot", label: "Shoty" },
                 { id: "beer", label: "Piva" },
+                { id: "food", label: "Jídlo" },
               ].map((cat) => (
                 <button
                   key={cat.id}
@@ -343,6 +344,7 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
                               {item.category === "drink" && "🍹 Drink"}
                               {item.category === "shot" && "🥃 Shot"}
                               {item.category === "beer" && "🍺 Pivo"}
+                              {item.category === "food" && "🍔 Jídlo"}
                               {item.category === "other" && "📦 Ostatní"}
                             </span>
                           </td>
@@ -759,7 +761,7 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
                   className="w-full bg-zinc-950 border border-tequila-border px-3.5 py-2 rounded-md text-xs text-gray-300 focus:outline-none focus:border-tequila-orange"
                 >
                   <option value="raw" className="bg-zinc-950">Surovina (Ingredience)</option>
-                  <option value="crafted" className="bg-zinc-950">Míchaný Drink (k prodeji)</option>
+                  <option value="crafted" className="bg-zinc-950">Prodejní položka / Jídlo / Drink</option>
                 </select>
               </div>
 
@@ -777,6 +779,7 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
                   <option value="drink" className="bg-zinc-950">🍹 Míchaný drink</option>
                   <option value="shot" className="bg-zinc-950">🥃 Shot (Panák)</option>
                   <option value="beer" className="bg-zinc-950">🍺 Pivo</option>
+                  <option value="food" className="bg-zinc-950">🍔 Jídlo</option>
                   <option value="other" className="bg-zinc-950">📦 Ostatní</option>
                 </select>
               </div>
@@ -848,6 +851,7 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
                     { id: "CupSoda", label: "Limo" },
                     { id: "Flame", label: "Ostrý" },
                     { id: "Citrus", label: "Citrus" },
+                    { id: "ChefHat", label: "Jídlo" },
                     { id: "Sparkles", label: "Speciál" },
                   ].map((ic) => (
                     <button
