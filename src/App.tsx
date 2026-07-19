@@ -52,6 +52,8 @@ export default function App() {
     salesCount: number;
     salesTotal: number;
     commissionEarned: number;
+    cashSalesTotal?: number;
+    cardSalesTotal?: number;
   } | null>(null);
   
   // Register deposit/withdraw modal/popover states
@@ -267,6 +269,12 @@ export default function App() {
       );
       const salesCount = shiftSales.length;
       const salesTotal = shiftSales.reduce((sum, s) => sum + s.totalAmount, 0);
+      const cashSalesTotal = shiftSales
+        .filter((s) => !s.paymentMethod || s.paymentMethod === "cash")
+        .reduce((sum, s) => sum + s.totalAmount, 0);
+      const cardSalesTotal = shiftSales
+        .filter((s) => s.paymentMethod === "card")
+        .reduce((sum, s) => sum + s.totalAmount, 0);
       const commissionEarned = shiftSales.reduce((sum, s) => sum + s.commissionPaid, 0);
 
       const newShiftLog = {
@@ -278,6 +286,8 @@ export default function App() {
         salesCount,
         salesTotal,
         commissionEarned,
+        cashSalesTotal,
+        cardSalesTotal,
         sales: shiftSales,
       };
 
@@ -307,6 +317,8 @@ export default function App() {
         salesCount,
         salesTotal,
         commissionEarned,
+        cashSalesTotal,
+        cardSalesTotal,
       });
     }
   };
@@ -327,7 +339,8 @@ export default function App() {
     cart: SaleItem[],
     bartenderId: string,
     discountPercentage: number = 0,
-    completedTabId?: string
+    completedTabId?: string,
+    paymentMethod: "cash" | "card" = "cash"
   ): { success: boolean; error?: string } => {
     // Find active bartender
     const bartenderIndex = state.bartenders.findIndex((b) => b.id === bartenderId);
@@ -384,6 +397,7 @@ export default function App() {
       commissionPaid,
       discountPercentage,
       discountAmount,
+      paymentMethod,
     };
 
     // Credit bartender commission
@@ -1238,7 +1252,19 @@ export default function App() {
                 <span className="text-zinc-500 font-bold uppercase text-[9px] tracking-wide">Celková tržba:</span>
                 <span className="font-bold text-tequila-orange">${shiftSummary.salesTotal.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between border-b border-zinc-900 pb-1.5 pl-3 text-[11px]">
+                <span className="text-zinc-500 font-bold uppercase text-[8px] tracking-wide">→ Z toho Hotově:</span>
+                <span className="font-bold text-tequila-yellow">${(shiftSummary.cashSalesTotal ?? 0).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between border-b border-zinc-900 pb-1.5 pl-3 text-[11px]">
+                <span className="text-zinc-500 font-bold uppercase text-[8px] tracking-wide">→ Z toho Kartou:</span>
+                <span className="font-bold text-emerald-400">${(shiftSummary.cardSalesTotal ?? 0).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between border-b border-zinc-900 pb-1.5 bg-emerald-950/10 p-2 rounded-lg">
+                <span className="text-emerald-400 font-bold uppercase text-[9px] tracking-wide flex items-center gap-1">💵 Hotovost k odevzdání:</span>
+                <span className="font-bold text-emerald-300 font-mono text-sm">${(shiftSummary.cashSalesTotal ?? 0).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between pt-1">
                 <span className="text-zinc-500 font-bold uppercase text-[9px] tracking-wide">Získaná provize:</span>
                 <span className="font-bold text-emerald-400">${shiftSummary.commissionEarned.toFixed(2)}</span>
               </div>

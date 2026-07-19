@@ -27,6 +27,12 @@ export const ShiftTab: React.FC<ShiftTabProps> = ({
   // Filter sales completed by this bartender
   const mySales = sales.filter((s) => s.bartenderId === bartender.id);
   const mySalesTotal = mySales.reduce((sum, s) => sum + s.totalAmount, 0);
+  const myCashSalesTotal = mySales
+    .filter((s) => !s.paymentMethod || s.paymentMethod === "cash")
+    .reduce((sum, s) => sum + s.totalAmount, 0);
+  const myCardSalesTotal = mySales
+    .filter((s) => s.paymentMethod === "card")
+    .reduce((sum, s) => sum + s.totalAmount, 0);
   const myCommissionTotal = mySales.reduce((sum, s) => sum + s.commissionPaid, 0);
 
   const isClockedIn = isOpen;
@@ -118,22 +124,33 @@ export const ShiftTab: React.FC<ShiftTabProps> = ({
         )}
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-zinc-950/60 border border-tequila-border/30 p-4 rounded-xl space-y-1">
             <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider block">Sazba Provize</span>
-            <span className="text-2xl font-bold text-tequila-yellow">{bartender.commissionRate}%</span>
-            <p className="text-[9px] text-zinc-600">Procento z celkové tržby bez slev.</p>
+            <span className="text-xl font-bold text-tequila-yellow">{bartender.commissionRate}%</span>
+            <p className="text-[9px] text-zinc-600">Podíl z tvých vlastních tržeb.</p>
           </div>
 
           <div className="bg-zinc-950/60 border border-tequila-border/30 p-4 rounded-xl space-y-1">
-            <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider block">Dnešní Odvedená Tržba</span>
-            <span className="text-2xl font-bold text-white">${mySalesTotal.toFixed(2)}</span>
-            <p className="text-[9px] text-zinc-600">Celková hodnota prodaných drinků.</p>
+            <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider block">Moje Dnešní Tržba</span>
+            <span className="text-xl font-bold text-white">${mySalesTotal.toFixed(2)}</span>
+            <p className="text-[9px] text-zinc-600">
+              Hotově: <span className="text-tequila-yellow">${myCashSalesTotal.toFixed(2)}</span> | Kartou: <span className="text-emerald-400">${myCardSalesTotal.toFixed(2)}</span>
+            </p>
+          </div>
+
+          <div className="bg-emerald-950/20 border border-emerald-500/20 p-4 rounded-xl space-y-1 relative">
+            <span className="text-[9px] text-emerald-400 font-bold uppercase tracking-wider block flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              Hotovost k odevzdání
+            </span>
+            <span className="text-xl font-bold text-emerald-300">${myCashSalesTotal.toFixed(2)}</span>
+            <p className="text-[9px] text-emerald-500/80">Fyzické peníze z tržeb pro nadřízeného.</p>
           </div>
 
           <div className="bg-zinc-950/60 border border-tequila-border/30 p-4 rounded-xl space-y-1">
             <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider block">Nasbíraná Provize</span>
-            <span className="text-2xl font-bold text-emerald-400">${bartender.totalCommissionEarned.toFixed(2)}</span>
+            <span className="text-xl font-bold text-emerald-400">${bartender.totalCommissionEarned.toFixed(2)}</span>
             <p className="text-[9px] text-zinc-600">Celková nevyplacená provize v kase.</p>
           </div>
         </div>
@@ -155,9 +172,20 @@ export const ShiftTab: React.FC<ShiftTabProps> = ({
             {mySales.map((sale) => (
               <div key={sale.id} className="p-4 hover:bg-zinc-950/30 transition-colors space-y-2">
                 <div className="flex justify-between items-center text-xs">
-                  <span className="font-bold text-zinc-300">
-                    Účtenka #{sale.id.slice(-6).toUpperCase()}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-zinc-300">
+                      Účtenka #{sale.id.slice(-6).toUpperCase()}
+                    </span>
+                    {(!sale.paymentMethod || sale.paymentMethod === "cash") ? (
+                      <span className="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase bg-tequila-yellow/10 text-tequila-yellow border border-tequila-yellow/20">
+                        Hotově
+                      </span>
+                    ) : (
+                      <span className="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase bg-emerald-950/40 text-emerald-400 border border-emerald-500/20">
+                        Kartou
+                      </span>
+                    )}
+                  </div>
                   <span className="text-[10px] text-zinc-500">
                     {new Date(sale.timestamp).toLocaleTimeString("cs-CZ")}
                   </span>

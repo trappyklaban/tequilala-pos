@@ -9,7 +9,8 @@ interface PosTabProps {
     cart: SaleItem[],
     bartenderId: string,
     discountPercentage: number,
-    completedTabId?: string
+    completedTabId?: string,
+    paymentMethod?: "cash" | "card"
   ) => { success: boolean; error?: string };
   barTabs: BarTab[];
   onSaveTabs: (tabs: BarTab[]) => void;
@@ -42,6 +43,7 @@ export const PosTab: React.FC<PosTabProps> = ({
   
   // Cart state
   const [cart, setCart] = useState<{ item: InventoryItem; quantity: number }[]>([]);
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "card">("cash");
   
   // Bar Tabs & Discount state
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
@@ -159,11 +161,12 @@ export const PosTab: React.FC<PosTabProps> = ({
       price: c.item.sellPrice,
     }));
 
-    const result = onCompleteSale(saleItems, selectedBartenderId, discountPercentage, activeTabId || undefined);
+    const result = onCompleteSale(saleItems, selectedBartenderId, discountPercentage, activeTabId || undefined, paymentMethod);
     if (result.success) {
-      triggerAlert("success", "Účtenka byla úspěšně zaplacena a provize připsána!");
+      triggerAlert("success", `Účtenka byla úspěšně zaplacena (${paymentMethod === "cash" ? "Hotově" : "Kartou"}) a provize připsána!`);
       setCart([]);
       setDiscountPercentage(0);
+      setPaymentMethod("cash"); // reset payment method to cash after checkout
       
       // Clear active tab locally since it's already deleted atomically on the server/state
       if (activeTabId) {
@@ -649,6 +652,39 @@ export const PosTab: React.FC<PosTabProps> = ({
               </div>
             </div>
 
+            {/* PAYMENT METHOD SECTION */}
+            <div className="border-b border-tequila-border/40 pb-3 space-y-2">
+              <label className="block text-[9px] text-zinc-500 font-mono font-bold uppercase tracking-wider">
+                Způsob Platby
+              </label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod("cash")}
+                  className={`flex-1 py-2 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer border flex items-center justify-center gap-1.5 ${
+                    paymentMethod === "cash"
+                      ? "bg-tequila-yellow/20 border-tequila-yellow text-tequila-yellow font-extrabold"
+                      : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-850"
+                  }`}
+                >
+                  <LucideIcon name="Coins" className="w-4 h-4" />
+                  Hotově
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod("card")}
+                  className={`flex-1 py-2 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer border flex items-center justify-center gap-1.5 ${
+                    paymentMethod === "card"
+                      ? "bg-emerald-950/40 border-emerald-500/40 text-emerald-400 font-extrabold"
+                      : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-850"
+                  }`}
+                >
+                  <LucideIcon name="CreditCard" className="w-4 h-4" />
+                  Kartou / Fak.
+                </button>
+              </div>
+            </div>
+
             {/* Calculations breakdown */}
             {(() => {
               const total = getCartTotal();
@@ -680,6 +716,13 @@ export const PosTab: React.FC<PosTabProps> = ({
                       </span>
                     </div>
                   )}
+
+                  <div className="flex justify-between text-[10px] text-zinc-500 italic">
+                    <span>Tok peněz:</span>
+                    <span className={paymentMethod === "cash" ? "text-tequila-yellow" : "text-emerald-450"}>
+                      {paymentMethod === "cash" ? "→ Připsat do Kasy (Hotovost)" : "→ Karta / Faktura (Banka)"}
+                    </span>
+                  </div>
 
                   <div className="pt-2 border-t border-tequila-border/50 flex justify-between items-baseline text-gray-100">
                     <span className="font-bold uppercase tracking-wider text-xs text-zinc-400">Celkem</span>

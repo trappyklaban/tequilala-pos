@@ -31,7 +31,10 @@ import {
   UserCheck,
   UserX,
   Award,
-  CircleDot
+  CircleDot,
+  CreditCard,
+  Wallet,
+  ShieldCheck
 } from "lucide-react";
 
 export const LucideIcon = ({ name, className = "" }: { name: string; className?: string }) => {
@@ -68,7 +71,10 @@ export const LucideIcon = ({ name, className = "" }: { name: string; className?:
     UserCheck,
     UserX,
     Award,
-    CircleDot
+    CircleDot,
+    CreditCard,
+    Wallet,
+    ShieldCheck
   };
   const IconComponent = icons[name] || GlassWater;
   return <IconComponent className={className} />;

@@ -53,6 +53,7 @@ export interface SaleLog {
   commissionPaid: number;
   discountPercentage?: number;
   discountAmount?: number;
+  paymentMethod?: "cash" | "card";
 }
 
 export interface PurchaseItem {
@@ -86,6 +87,8 @@ export interface ShiftLog {
   salesCount: number;
   salesTotal: number;
   commissionEarned: number;
+  cashSalesTotal?: number;
+  cardSalesTotal?: number;
   sales?: SaleLog[];
 }
 

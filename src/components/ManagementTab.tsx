@@ -127,20 +127,37 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
     csv += `Počet realizovaných prodejů:;${monthlySales.length}\n\n`;
 
     csv += "PODROBNÝ VÝPIS ODPRACOVANÝCH SMĚN\n";
-    csv += "ID Směny;Jméno zaměstnance;Začátek směny;Konec směny;Doba trvání (hod);Tržba ze směny (USD);Počet prodejů\n";
+    csv += "ID Směny;Jméno zaměstnance;Začátek směny;Konec směny;Doba trvání (hod);Tržba celkem (USD);Z toho Hotovost (USD);Z toho Kartou (USD);Počet prodejů\n";
     
     monthlyShifts.forEach((shift) => {
       const durationMs = new Date(shift.endTime).getTime() - new Date(shift.startTime).getTime();
       const sHours = Math.max(0, durationMs) / (1000 * 60 * 60);
-      csv += `${shift.id};${shift.bartenderName};${new Date(shift.startTime).toLocaleString("cs-CZ")};${new Date(shift.endTime).toLocaleString("cs-CZ")};${sHours.toFixed(2).replace(".", ",")};${shift.salesTotal.toFixed(2).replace(".", ",")};${shift.salesCount}\n`;
+
+      // Recalculate cash/card if not stored
+      let cSales = shift.cashSalesTotal;
+      let crSales = shift.cardSalesTotal;
+      if (cSales === undefined || crSales === undefined) {
+        const shSales = shift.sales || sales.filter(
+          (s) => s.bartenderId === shift.bartenderId && s.timestamp >= shift.startTime && s.timestamp <= shift.endTime
+        );
+        cSales = shSales
+          .filter((s) => !s.paymentMethod || s.paymentMethod === "cash")
+          .reduce((sum, s) => sum + s.totalAmount, 0);
+        crSales = shSales
+          .filter((s) => s.paymentMethod === "card")
+          .reduce((sum, s) => sum + s.totalAmount, 0);
+      }
+
+      csv += `${shift.id};${shift.bartenderName};${new Date(shift.startTime).toLocaleString("cs-CZ")};${new Date(shift.endTime).toLocaleString("cs-CZ")};${sHours.toFixed(2).replace(".", ",")};${shift.salesTotal.toFixed(2).replace(".", ",")};${cSales.toFixed(2).replace(".", ",")};${crSales.toFixed(2).replace(".", ",")};${shift.salesCount}\n`;
     });
 
     csv += "\nPODROBNÝ VÝPIS REALIZOVANÝCH PRODEJŮ\n";
-    csv += "ID Prodeje;Datum a čas prodeje;Účtoval;Celková částka (USD);Položky prodeje\n";
+    csv += "ID Prodeje;Datum a čas prodeje;Účtoval;Celková částka (USD);Způsob platby;Položky prodeje\n";
 
     monthlySales.forEach((sale) => {
       const itemSummary = sale.items.map(it => `${it.quantity}x ${it.name}`).join(", ");
-      csv += `${sale.id};${new Date(sale.timestamp).toLocaleString("cs-CZ")};${sale.bartenderName};${sale.totalAmount.toFixed(2).replace(".", ",")};"${itemSummary.replace(/"/g, '""')}"\n`;
+      const payMethodStr = (!sale.paymentMethod || sale.paymentMethod === "cash") ? "Hotově" : "Kartou";
+      csv += `${sale.id};${new Date(sale.timestamp).toLocaleString("cs-CZ")};${sale.bartenderName};${sale.totalAmount.toFixed(2).replace(".", ",")};${payMethodStr};"${itemSummary.replace(/"/g, '""')}"\n`;
     });
 
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -1736,6 +1753,18 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
                       );
                       const isExpanded = !!expandedShiftIds[shift.id];
 
+                      const cashSales = shift.cashSalesTotal !== undefined 
+                        ? shift.cashSalesTotal 
+                        : shiftSales
+                            .filter((s) => !s.paymentMethod || s.paymentMethod === "cash")
+                            .reduce((sum, s) => sum + s.totalAmount, 0);
+
+                      const cardSales = shift.cardSalesTotal !== undefined 
+                        ? shift.cardSalesTotal 
+                        : shiftSales
+                            .filter((s) => s.paymentMethod === "card")
+                            .reduce((sum, s) => sum + s.totalAmount, 0);
+
                       return (
                         <div
                           key={shift.id}
@@ -1795,18 +1824,26 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
                               </p>
                             </div>
                             
-                            <div className="flex flex-wrap items-center gap-5 text-left sm:text-right text-[11px] mt-1 sm:mt-0">
-                              <div className="min-w-[60px]">
+                            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-left sm:text-right text-[11px] mt-1 sm:mt-0">
+                              <div className="min-w-[50px]">
                                 <span className="block text-[8px] text-zinc-500 uppercase font-bold">Prodeje</span>
                                 <span className="font-bold text-gray-300">{shift.salesCount} ks</span>
                               </div>
-                              <div className="min-w-[80px]">
-                                <span className="block text-[8px] text-zinc-500 uppercase font-bold">Celková tržba</span>
-                                <span className="font-bold text-emerald-400">${shift.salesTotal.toFixed(2)}</span>
+                              <div className="min-w-[70px]">
+                                <span className="block text-[8px] text-zinc-500 uppercase font-bold">Hotovost</span>
+                                <span className="font-bold text-tequila-yellow">${cashSales.toFixed(2)}</span>
                               </div>
-                              <div className="min-w-[80px]">
+                              <div className="min-w-[70px]">
+                                <span className="block text-[8px] text-zinc-500 uppercase font-bold">Karta/Fak</span>
+                                <span className="font-bold text-emerald-400">${cardSales.toFixed(2)}</span>
+                              </div>
+                              <div className="min-w-[70px]">
+                                <span className="block text-[8px] text-zinc-500 uppercase font-bold">Celkem</span>
+                                <span className="font-bold text-tequila-orange">${shift.salesTotal.toFixed(2)}</span>
+                              </div>
+                              <div className="min-w-[75px]">
                                 <span className="block text-[8px] text-zinc-500 uppercase font-bold">Jeho provize</span>
-                                <span className="font-bold text-tequila-yellow">${shift.commissionEarned.toFixed(2)}</span>
+                                <span className="font-bold text-amber-500">${shift.commissionEarned.toFixed(2)}</span>
                               </div>
                             </div>
                           </div>
