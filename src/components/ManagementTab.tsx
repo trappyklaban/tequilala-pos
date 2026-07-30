@@ -12,6 +12,14 @@ import {
 } from "../types";
 import { LucideIcon } from "./LucideIcon";
 
+const toDatetimeLocal = (isoString: string): string => {
+  if (!isoString) return "";
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return "";
+  const pad = (n: number) => (n < 10 ? "0" + n : String(n));
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
 interface ManagementTabProps {
   bartenders: Bartender[];
   sales: SaleLog[];
@@ -39,6 +47,7 @@ interface ManagementTabProps {
     updatedItem?: Partial<Omit<InventoryItem, "id" | "type" | "stock">>
   ) => void;
   onDeleteShift?: (id: string) => void;
+  onUpdateShift?: (id: string, startTime: string, endTime: string) => void;
 }
 
 export const ManagementTab: React.FC<ManagementTabProps> = ({
@@ -64,10 +73,16 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
   onDeleteRecipe,
   onUpdateRecipe,
   onDeleteShift,
+  onUpdateShift,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<"employees" | "recipes" | "stats" | "history" | "backup">("employees");
   const [expandedShiftIds, setExpandedShiftIds] = useState<Record<string, boolean>>({});
   const [confirmDeleteShiftId, setConfirmDeleteShiftId] = useState<string | null>(null);
+
+  // Shift Edit State
+  const [editingShiftId, setEditingShiftId] = useState<string | null>(null);
+  const [editShiftStart, setEditShiftStart] = useState<string>("");
+  const [editShiftEnd, setEditShiftEnd] = useState<string>("");
 
   // Export Subsidies state
   const todayStr = new Date().toISOString().substring(0, 7); // "YYYY-MM"
@@ -1779,42 +1794,68 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
                                 <span className="text-[9px] bg-zinc-900 border border-zinc-800 text-zinc-400 font-bold px-1.5 py-0.5 rounded uppercase">
                                   Ukončená směna
                                 </span>
-                                {onDeleteShift && (
-                                  <div className="flex items-center ml-2">
-                                    {confirmDeleteShiftId === shift.id ? (
-                                      <div className="flex items-center gap-1.5 bg-rose-950/40 border border-rose-500/30 px-2 py-0.5 rounded-md text-[9px] font-bold text-rose-400">
-                                        <span>Smazat vč. prodejů?</span>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            onDeleteShift(shift.id);
-                                            setConfirmDeleteShiftId(null);
-                                          }}
-                                          className="text-rose-200 hover:text-white underline cursor-pointer"
-                                        >
-                                          Ano
-                                        </button>
-                                        <span className="text-rose-500/50">|</span>
-                                        <button
-                                          type="button"
-                                          onClick={() => setConfirmDeleteShiftId(null)}
-                                          className="text-zinc-400 hover:text-white cursor-pointer"
-                                        >
-                                          Ne
-                                        </button>
-                                      </div>
-                                    ) : (
-                                      <button
-                                        type="button"
-                                        onClick={() => setConfirmDeleteShiftId(shift.id)}
-                                        className="text-zinc-500 hover:text-rose-400 p-1 rounded-md hover:bg-rose-950/10 transition-colors cursor-pointer"
-                                        title="Smazat směnu (včetně prodejů, obnovení zásob a odečtení provizí)"
-                                      >
-                                        <LucideIcon name="Trash2" className="w-3.5 h-3.5" />
-                                      </button>
-                                    )}
-                                  </div>
+                                {shift.autoClosed && (
+                                  <span className="text-[9px] bg-amber-950/40 border border-amber-500/30 text-amber-400 font-bold px-1.5 py-0.5 rounded uppercase flex items-center gap-1" title="Směna byla automaticky ukončena z důvodu neaktivity">
+                                    <LucideIcon name="Clock" className="w-3 h-3 text-amber-400" />
+                                    Auto-zavřeno
+                                  </span>
                                 )}
+                                <div className="flex items-center ml-2 gap-1">
+                                  {onUpdateShift && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingShiftId(editingShiftId === shift.id ? null : shift.id);
+                                        setEditShiftStart(toDatetimeLocal(shift.startTime));
+                                        setEditShiftEnd(toDatetimeLocal(shift.endTime));
+                                      }}
+                                      className={`p-1 rounded-md transition-colors cursor-pointer ${
+                                        editingShiftId === shift.id
+                                          ? "text-tequila-yellow bg-tequila-yellow/20"
+                                          : "text-zinc-500 hover:text-tequila-yellow hover:bg-tequila-yellow/10"
+                                      }`}
+                                      title="Opravit čas začátku a konce směny"
+                                    >
+                                      <LucideIcon name="Pencil" className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                  {onDeleteShift && (
+                                    <>
+                                      {confirmDeleteShiftId === shift.id ? (
+                                        <div className="flex items-center gap-1.5 bg-rose-950/40 border border-rose-500/30 px-2 py-0.5 rounded-md text-[9px] font-bold text-rose-400">
+                                          <span>Smazat vč. prodejů?</span>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              onDeleteShift(shift.id);
+                                              setConfirmDeleteShiftId(null);
+                                            }}
+                                            className="text-rose-200 hover:text-white underline cursor-pointer"
+                                          >
+                                            Ano
+                                          </button>
+                                          <span className="text-rose-500/50">|</span>
+                                          <button
+                                            type="button"
+                                            onClick={() => setConfirmDeleteShiftId(null)}
+                                            className="text-zinc-400 hover:text-white cursor-pointer"
+                                          >
+                                            Ne
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          onClick={() => setConfirmDeleteShiftId(shift.id)}
+                                          className="text-zinc-500 hover:text-rose-400 p-1 rounded-md hover:bg-rose-950/10 transition-colors cursor-pointer"
+                                          title="Smazat směnu (včetně prodejů, obnovení zásob a odečtení provizí)"
+                                        >
+                                          <LucideIcon name="Trash2" className="w-3.5 h-3.5" />
+                                        </button>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
                               </div>
                               <p className="text-zinc-500 text-[10px] mt-1.5">
                                 Od: {new Date(shift.startTime).toLocaleString("cs-CZ")}
@@ -1822,6 +1863,73 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
                               <p className="text-zinc-500 text-[10px] mt-0.5">
                                 Do: {new Date(shift.endTime).toLocaleString("cs-CZ")}
                               </p>
+
+                              {/* SHIFT TIME EDIT FORM */}
+                              {editingShiftId === shift.id && (
+                                <div className="bg-zinc-950 border border-tequila-yellow/40 p-3 rounded-xl space-y-3 mt-3 w-full">
+                                  <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
+                                    <span className="text-xs font-bold text-tequila-yellow uppercase tracking-wide flex items-center gap-1.5">
+                                      <LucideIcon name="Pencil" className="w-3.5 h-3.5" />
+                                      Opravit Časy Směny
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditingShiftId(null)}
+                                      className="text-zinc-500 hover:text-zinc-300 text-xs cursor-pointer"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                                    <div>
+                                      <label className="block text-[9px] text-zinc-400 font-bold uppercase mb-1">Začátek Směny</label>
+                                      <input
+                                        type="datetime-local"
+                                        value={editShiftStart}
+                                        onChange={(e) => setEditShiftStart(e.target.value)}
+                                        className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-zinc-100 font-mono text-xs focus:border-tequila-yellow focus:outline-none"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-[9px] text-zinc-400 font-bold uppercase mb-1">Konec Směny</label>
+                                      <input
+                                        type="datetime-local"
+                                        value={editShiftEnd}
+                                        onChange={(e) => setEditShiftEnd(e.target.value)}
+                                        className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-zinc-100 font-mono text-xs focus:border-tequila-yellow focus:outline-none"
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-zinc-900">
+                                    <span className="text-[9px] text-zinc-500 italic">
+                                      * Změna časů automaticky přepočítá prodeje a provize pro toto časové okno.
+                                    </span>
+                                    <div className="flex gap-2 shrink-0">
+                                      <button
+                                        type="button"
+                                        onClick={() => setEditingShiftId(null)}
+                                        className="px-3 py-1.5 rounded-lg text-xs font-bold text-zinc-400 bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 cursor-pointer"
+                                      >
+                                        Zrušit
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (onUpdateShift && editShiftStart && editShiftEnd) {
+                                            const isoStart = new Date(editShiftStart).toISOString();
+                                            const isoEnd = new Date(editShiftEnd).toISOString();
+                                            onUpdateShift(shift.id, isoStart, isoEnd);
+                                            setEditingShiftId(null);
+                                          }
+                                        }}
+                                        className="px-3 py-1.5 rounded-lg text-xs font-bold text-zinc-950 bg-tequila-yellow hover:bg-amber-400 cursor-pointer transition-colors"
+                                      >
+                                        Uložit opravené časy
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                             
                             <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-left sm:text-right text-[11px] mt-1 sm:mt-0">

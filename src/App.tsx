@@ -12,6 +12,7 @@ import {
   SaleItem,
   PurchaseItem,
   BarTab,
+  ShiftLog,
 } from "./types";
 import {
   INITIAL_ITEMS,
@@ -202,6 +203,101 @@ export default function App() {
       handleFirestoreError(error, OperationType.WRITE, "company/state");
     }
   };
+
+  // Auto-close shifts if inactive for 6+ hours or exceeding 12 hours total duration
+  useEffect(() => {
+    const checkAutoClose = () => {
+      if (!isOpen || !shiftStartTime || !session || !session.bartenderId) return;
+
+      const now = new Date();
+      const startTimeDate = new Date(shiftStartTime);
+      const shiftSales = state.sales.filter(
+        (s) => s.bartenderId === session.bartenderId && s.timestamp >= shiftStartTime
+      );
+
+      let lastActivityTime = startTimeDate.getTime();
+      if (shiftSales.length > 0) {
+        const timestamps = shiftSales.map((s) => new Date(s.timestamp).getTime());
+        lastActivityTime = Math.max(...timestamps);
+      }
+
+      const inactivityMs = now.getTime() - lastActivityTime;
+      const totalDurationMs = now.getTime() - startTimeDate.getTime();
+
+      const INACTIVITY_LIMIT_MS = 6 * 60 * 60 * 1000; // 6 hours inactivity
+      const DURATION_LIMIT_MS = 12 * 60 * 60 * 1000; // 12 hours total shift cap
+
+      if (inactivityMs >= INACTIVITY_LIMIT_MS || totalDurationMs >= DURATION_LIMIT_MS) {
+        let calculatedEndTimeMs = shiftSales.length > 0 ? lastActivityTime + 15 * 60 * 1000 : startTimeDate.getTime() + 30 * 60 * 1000;
+        if (calculatedEndTimeMs > now.getTime()) {
+          calculatedEndTimeMs = now.getTime();
+        }
+        const endTimeStr = new Date(calculatedEndTimeMs).toISOString();
+
+        const bartenderId = session.bartenderId;
+        const bartender = state.bartenders.find((b) => b.id === bartenderId);
+        const bName = bartender?.name || (session.role === "manager" ? "Manažer" : "Barman");
+
+        const salesCount = shiftSales.length;
+        const salesTotal = shiftSales.reduce((sum, s) => sum + s.totalAmount, 0);
+        const cashSalesTotal = shiftSales
+          .filter((s) => !s.paymentMethod || s.paymentMethod === "cash")
+          .reduce((sum, s) => sum + s.totalAmount, 0);
+        const cardSalesTotal = shiftSales
+          .filter((s) => s.paymentMethod === "card")
+          .reduce((sum, s) => sum + s.totalAmount, 0);
+        const commissionEarned = shiftSales.reduce((sum, s) => sum + s.commissionPaid, 0);
+
+        const newShiftLog = {
+          id: `shift_${Date.now()}`,
+          bartenderId,
+          bartenderName: bName,
+          startTime: shiftStartTime,
+          endTime: endTimeStr,
+          salesCount,
+          salesTotal,
+          commissionEarned,
+          cashSalesTotal,
+          cardSalesTotal,
+          autoClosed: true,
+          sales: shiftSales,
+        };
+
+        const updatedBartenders = state.bartenders.map((b) => {
+          if (b.id === bartenderId) {
+            return { ...b, onShift: false };
+          }
+          return b;
+        });
+
+        saveState({
+          ...state,
+          bartenders: updatedBartenders,
+          shifts: [...(state.shifts || []), newShiftLog],
+        });
+
+        localStorage.removeItem("tequilala_shift_start_time");
+        setShiftStartTime(null);
+        setIsOpen(false);
+        localStorage.setItem("tequilala_register_open", "false");
+
+        setShiftSummary({
+          bartenderName: bName,
+          startTime: shiftStartTime,
+          endTime: endTimeStr,
+          salesCount,
+          salesTotal,
+          commissionEarned,
+          cashSalesTotal,
+          cardSalesTotal,
+        });
+      }
+    };
+
+    checkAutoClose();
+    const interval = setInterval(checkAutoClose, 60000);
+    return () => clearInterval(interval);
+  }, [isOpen, shiftStartTime, session, state.sales, state.bartenders, state.shifts]);
 
   const handleLoginSuccess = (role: "manager" | "barman", bartenderId?: string) => {
     const finalBartenderId = role === "manager" && !bartenderId ? "bart_majitel" : bartenderId;
@@ -717,6 +813,50 @@ export default function App() {
     });
   };
 
+  const handleUpdateShift = (shiftId: string, newStartTime: string, newEndTime: string) => {
+    const shiftsList = state.shifts || [];
+    const shiftIndex = shiftsList.findIndex((s) => s.id === shiftId);
+    if (shiftIndex === -1) return;
+
+    const currentShift = shiftsList[shiftIndex];
+
+    // Find sales in the new time window for this bartender
+    const shiftSales = state.sales.filter(
+      (s) => s.bartenderId === currentShift.bartenderId && s.timestamp >= newStartTime && s.timestamp <= newEndTime
+    );
+
+    const salesCount = shiftSales.length;
+    const salesTotal = shiftSales.reduce((sum, s) => sum + s.totalAmount, 0);
+    const cashSalesTotal = shiftSales
+      .filter((s) => !s.paymentMethod || s.paymentMethod === "cash")
+      .reduce((sum, s) => sum + s.totalAmount, 0);
+    const cardSalesTotal = shiftSales
+      .filter((s) => s.paymentMethod === "card")
+      .reduce((sum, s) => sum + s.totalAmount, 0);
+    const commissionEarned = shiftSales.reduce((sum, s) => sum + s.commissionPaid, 0);
+
+    const updatedShift: ShiftLog = {
+      ...currentShift,
+      startTime: newStartTime,
+      endTime: newEndTime,
+      salesCount,
+      salesTotal,
+      cashSalesTotal,
+      cardSalesTotal,
+      commissionEarned,
+      sales: shiftSales,
+      autoClosed: false,
+    };
+
+    const updatedShifts = [...shiftsList];
+    updatedShifts[shiftIndex] = updatedShift;
+
+    saveState({
+      ...state,
+      shifts: updatedShifts,
+    });
+  };
+
   // 7. ADD EMPLOYEES & COMMISSION MANAGER
   const handleAddBartender = (name: string, rate: number, pin?: string, role: "manager" | "barman" = "barman") => {
     const id = `bart_${name
@@ -1196,6 +1336,7 @@ export default function App() {
             onDeleteRecipe={handleDeleteRecipe}
             onUpdateRecipe={handleUpdateRecipe}
             onDeleteShift={handleDeleteShift}
+            onUpdateShift={handleUpdateShift}
           />
         )}
       </main>

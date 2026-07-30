@@ -89,6 +89,7 @@ export interface ShiftLog {
   commissionEarned: number;
   cashSalesTotal?: number;
   cardSalesTotal?: number;
+  autoClosed?: boolean;
   sales?: SaleLog[];
 }
 
