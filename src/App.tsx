@@ -27,15 +27,8 @@ import { PinLoginScreen } from "./components/PinLoginScreen";
 import { ShiftTab } from "./components/ShiftTab";
 import { LucideIcon } from "./components/LucideIcon";
 
+// Local storage persistence key
 const LOCAL_STORAGE_KEY = "tequilala_bar_state";
-
-// Helper to auto-inject missing initial items into existing persistent store
-const ensureAllInitialItems = (existingItems: InventoryItem[]): { items: InventoryItem[]; added: boolean } => {
-  const existingIds = new Set((existingItems || []).map((i) => i.id));
-  const missing = INITIAL_ITEMS.filter((i) => !existingIds.has(i.id));
-  if (missing.length === 0) return { items: existingItems || [], added: false };
-  return { items: [...(existingItems || []), ...missing], added: true };
-};
 
 let isQuotaExhausted = false;
 
@@ -98,10 +91,9 @@ export default function App() {
             }
             return b;
           });
-          const { items: mergedItems } = ensureAllInitialItems(parsed.items || []);
           setState({
             ...parsed,
-            items: mergedItems,
+            items: parsed.items || [],
             bartenders: cleanedBartenders,
             recipes: parsed.recipes,
             barTabs: parsed.barTabs || [],
@@ -145,13 +137,8 @@ export default function App() {
           return b;
         });
 
-        const { items: mergedItems, added: itemsAdded } = ensureAllInitialItems(data.items || []);
-        if (itemsAdded) {
-          needsSave = true;
-        }
-
         setState({
-          items: mergedItems,
+          items: data.items || [],
           recipes: data.recipes || [],
           bartenders: cleanedBartenders,
           sales: data.sales || [],
@@ -164,7 +151,7 @@ export default function App() {
 
         const updatedData = {
           ...data,
-          items: mergedItems,
+          items: data.items || [],
           bartenders: cleanedBartenders,
         };
 
