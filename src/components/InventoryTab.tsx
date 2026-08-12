@@ -414,39 +414,27 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
                           {/* Prices & Costs column */}
                           <td className="p-4">
                             {isEditingThisItem ? (
-                              editingItem.type === "raw" ? (
-                                <div className="flex items-center gap-1.5 font-mono text-[10px]">
-                                  <span className="text-zinc-500 font-bold uppercase text-[8px] tracking-wide w-12">Nákup / ks:</span>
+                              <div className="flex flex-col gap-1 text-[10px]">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-zinc-500 font-bold uppercase text-[8px] tracking-wide w-12">Prodej:</span>
+                                  <input
+                                    type="number"
+                                    value={editingItem.sellPrice}
+                                    onChange={(e) => setEditingItem({ ...editingItem, sellPrice: Number(e.target.value) })}
+                                    className="w-18 bg-zinc-950 border border-tequila-orange px-1.5 py-0.5 rounded text-[10px] text-white focus:outline-none text-right"
+                                  />
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-zinc-500 font-bold uppercase text-[8px] tracking-wide w-12">Nákup:</span>
                                   <input
                                     type="number"
                                     value={editingItem.purchasePrice}
                                     onChange={(e) => setEditingItem({ ...editingItem, purchasePrice: Number(e.target.value) })}
-                                    className="w-18 bg-zinc-950 border border-tequila-orange px-1.5 py-0.5 rounded text-[10px] text-white focus:outline-none text-right"
+                                    className="w-18 bg-zinc-950 border border-zinc-850 px-1.5 py-0.5 rounded text-[10px] text-zinc-300 focus:outline-none text-right focus:border-tequila-orange"
                                   />
                                 </div>
-                              ) : (
-                                <div className="flex flex-col gap-1 text-[10px]">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="text-zinc-500 font-bold uppercase text-[8px] tracking-wide w-12">Prodej:</span>
-                                    <input
-                                      type="number"
-                                      value={editingItem.sellPrice}
-                                      onChange={(e) => setEditingItem({ ...editingItem, sellPrice: Number(e.target.value) })}
-                                      className="w-18 bg-zinc-950 border border-tequila-orange px-1.5 py-0.5 rounded text-[10px] text-white focus:outline-none text-right"
-                                    />
-                                  </div>
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="text-zinc-500 font-bold uppercase text-[8px] tracking-wide w-12">Nákup:</span>
-                                    <input
-                                      type="number"
-                                      value={editingItem.purchasePrice}
-                                      onChange={(e) => setEditingItem({ ...editingItem, purchasePrice: Number(e.target.value) })}
-                                      className="w-18 bg-zinc-950 border border-zinc-850 px-1.5 py-0.5 rounded text-[10px] text-zinc-300 focus:outline-none text-right focus:border-tequila-orange"
-                                    />
-                                  </div>
-                                </div>
-                              )
-                            ) : item.type === "raw" ? (
+                              </div>
+                            ) : item.type === "raw" && item.sellPrice <= 0 ? (
                               <div className="space-y-0.5 text-[10px] text-zinc-400">
                                 <div className="flex items-center gap-1">
                                   <span className="text-zinc-500 font-bold uppercase text-[8px] tracking-wide">Nákup / ks:</span>
@@ -472,7 +460,7 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
                                   <div className="space-y-0.5 text-[10px]">
                                     <div className="flex items-center gap-1.5">
                                       <span className="text-zinc-500 font-bold uppercase text-[8px] tracking-wide">Náklad 1ks:</span>
-                                      <span className="font-bold text-emerald-400" title={`Cena celkové suroviny děleno ${yieldAmt}`}>
+                                      <span className="font-bold text-emerald-400" title={recipe ? `Cena celkové suroviny děleno ${yieldAmt}` : "Nákupní cena"}>
                                         ${costPerDrink.toFixed(2)}
                                       </span>
                                     </div>
@@ -838,14 +826,11 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
                 <input
                   type="number"
                   min="0"
-                  disabled={newItemType === "raw"}
-                  className={`w-full bg-zinc-950 border border-tequila-border px-3.5 py-2 rounded-md text-xs focus:outline-none focus:border-tequila-orange font-mono text-white ${
-                    newItemType === "raw" ? "opacity-30 cursor-not-allowed" : ""
-                  }`}
-                  value={newItemType === "raw" ? 0 : newItemSellPrice}
+                  className="w-full bg-zinc-950 border border-tequila-border px-3.5 py-2 rounded-md text-xs focus:outline-none focus:border-tequila-orange font-mono text-white"
+                  value={newItemSellPrice}
                   onChange={(e) => setNewItemSellPrice(Number(e.target.value))}
                 />
-                <p className="text-[9px] text-zinc-600 mt-0.5">Účtováno zákazníkovi.</p>
+                <p className="text-[9px] text-zinc-600 mt-0.5">Účtováno zákazníkovi (u dýmek, cigaret, jídel, nápojů...).</p>
               </div>
 
               {/* Icon selector */}

@@ -1,5 +1,12 @@
-import { initializeApp, getApps, getApp } from "firebase/app";
+import { initializeApp, getApps, getApp, setLogLevel } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
+
+// Suppress internal Firebase SDK log noise
+try {
+  setLogLevel("silent");
+} catch {
+  // Ignore if unsupported in environment
+}
 
 // Public Firebase config keys (safe for frontend code)
 const env = (import.meta as any).env || {};
@@ -60,7 +67,6 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path
   };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  console.warn('Firestore Error (operating in offline/local storage mode):', JSON.stringify(errInfo));
 }
 

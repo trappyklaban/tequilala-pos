@@ -37,6 +37,20 @@ const ensureAllInitialItems = (existingItems: InventoryItem[]): { items: Invento
   return { items: [...(existingItems || []), ...missing], added: true };
 };
 
+let isQuotaExhausted = false;
+
+function isQuotaError(err: any): boolean {
+  if (!err) return false;
+  const msg = String(err?.message || err);
+  const code = String(err?.code || '');
+  return (
+    code.includes("resource-exhausted") ||
+    msg.includes("resource-exhausted") ||
+    msg.includes("Quota limit exceeded") ||
+    msg.includes("Quota exceeded")
+  );
+}
+
 export default function App() {
   const [state, setState] = useState<BusinessState>({
     items: [],
@@ -157,11 +171,11 @@ export default function App() {
         // Keep local cache in sync
         localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updatedData));
 
-        if (needsSave) {
+        if (needsSave && !isQuotaExhausted) {
           try {
             await setDoc(docRef, updatedData);
           } catch (err) {
-            console.error("Failed to save self-healed state to Firestore:", err);
+            if (isQuotaError(err)) isQuotaExhausted = true;
           }
         }
       } else {
@@ -177,16 +191,16 @@ export default function App() {
           barTabs: [],
           shifts: [],
         };
-        try {
-          await setDoc(docRef, defaultState);
-        } catch (err) {
-          console.error("Failed to seed initial Firestore state:", err);
-          handleFirestoreError(err, OperationType.WRITE, "company/state");
+        if (!isQuotaExhausted) {
+          try {
+            await setDoc(docRef, defaultState);
+          } catch (err) {
+            if (isQuotaError(err)) isQuotaExhausted = true;
+          }
         }
       }
     }, (error) => {
-      console.error("Firestore state sync error:", error);
-      handleFirestoreError(error, OperationType.GET, "company/state");
+      if (isQuotaError(error)) isQuotaExhausted = true;
     });
 
     const savedSession = localStorage.getItem("tequilala_terminal_session");
@@ -216,12 +230,20 @@ export default function App() {
   // Save to local storage and Firestore on changes
   const saveState = async (newState: BusinessState) => {
     setState(newState);
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(newState));
     try {
-      await setDoc(doc(db, "company", "state"), newState);
-    } catch (error) {
-      console.error("Failed to save state to Firestore:", error);
-      handleFirestoreError(error, OperationType.WRITE, "company/state");
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(newState));
+    } catch (e) {
+      console.error("Failed to write to localStorage:", e);
+    }
+
+    if (!isQuotaExhausted) {
+      try {
+        await setDoc(doc(db, "company", "state"), newState);
+      } catch (error) {
+        if (isQuotaError(error)) {
+          isQuotaExhausted = true;
+        }
+      }
     }
   };
 
