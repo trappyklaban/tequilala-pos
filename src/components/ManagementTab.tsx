@@ -1123,6 +1123,8 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
                           <option value="drink">🍹 Míchaný drink</option>
                           <option value="shot">🥃 Shot (Panák)</option>
                           <option value="beer">🍺 Pivo</option>
+                          <option value="hookah">💨 Dýmka</option>
+                          <option value="tobacco">🚬 Tabák</option>
                           <option value="alcohol">🥃 Surovina: Alkohol</option>
                           <option value="soft">🥤 Surovina: Nealko</option>
                           <option value="other">📦 Ostatní</option>
@@ -1289,6 +1291,8 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
                           <option value="drink">🍹 Míchaný drink</option>
                           <option value="shot">🥃 Shot (Panák)</option>
                           <option value="beer">🍺 Pivo</option>
+                          <option value="hookah">💨 Dýmka</option>
+                          <option value="tobacco">🚬 Tabák</option>
                           <option value="alcohol">🥃 Surovina: Alkohol</option>
                           <option value="soft">🥤 Surovina: Nealko</option>
                           <option value="other">📦 Ostatní</option>
@@ -1731,11 +1735,15 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
                                   </div>
                                 ))}
                               </div>
-                              {sale.commissionPaid > 0 && (
+                              {sale.isEmployeeDiscount ? (
+                                <div className="text-[8px] text-purple-400 font-mono pl-2">
+                                  👤 Zaměstnanecká sleva (Bez provize)
+                                </div>
+                              ) : sale.commissionPaid > 0 ? (
                                 <div className="text-[8px] text-tequila-yellow font-mono pl-2">
                                   💸 Provize ze sprzedaży: ${sale.commissionPaid.toFixed(2)}
                                 </div>
-                              )}
+                              ) : null}
                             </div>
                           ))
                         )}

@@ -203,7 +203,11 @@ export const ShiftTab: React.FC<ShiftTabProps> = ({
 
                 <div className="pt-2 border-t border-zinc-900 flex justify-between items-center text-xs">
                   <div>
-                    {sale.discountPercentage ? (
+                    {sale.isEmployeeDiscount ? (
+                      <span className="text-[9px] text-purple-400 font-bold uppercase tracking-wider mr-2 bg-purple-950/60 border border-purple-500/30 px-1.5 py-0.5 rounded">
+                        👤 Zaměstnanecká sleva {sale.discountPercentage}%
+                      </span>
+                    ) : sale.discountPercentage ? (
                       <span className="text-[9px] text-rose-450 font-bold uppercase tracking-wider mr-2">
                         Sleva {sale.discountPercentage}% (-${sale.discountAmount?.toFixed(2)})
                       </span>
@@ -216,7 +220,9 @@ export const ShiftTab: React.FC<ShiftTabProps> = ({
                     </div>
                     <div className="text-right">
                       <span className="text-[8px] text-zinc-500 uppercase block font-bold">Moje Provize</span>
-                      <span className="font-bold text-emerald-400">+${sale.commissionPaid.toFixed(2)}</span>
+                      <span className={`font-bold ${sale.isEmployeeDiscount ? "text-rose-400 line-through opacity-70" : "text-emerald-400"}`}>
+                        +${sale.commissionPaid.toFixed(2)}
+                      </span>
                     </div>
                   </div>
                 </div>

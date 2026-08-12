@@ -1,4 +1,4 @@
-export type ItemCategory = "alcohol" | "soft" | "garnish" | "other" | "drink" | "shot" | "beer" | "food";
+export type ItemCategory = "alcohol" | "soft" | "garnish" | "other" | "drink" | "shot" | "beer" | "food" | "hookah" | "tobacco";
 
 export interface InventoryItem {
   id: string;
@@ -53,6 +53,7 @@ export interface SaleLog {
   commissionPaid: number;
   discountPercentage?: number;
   discountAmount?: number;
+  isEmployeeDiscount?: boolean;
   paymentMethod?: "cash" | "card";
 }
 

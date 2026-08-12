@@ -29,6 +29,14 @@ import { LucideIcon } from "./components/LucideIcon";
 
 const LOCAL_STORAGE_KEY = "tequilala_bar_state";
 
+// Helper to auto-inject missing initial items into existing persistent store
+const ensureAllInitialItems = (existingItems: InventoryItem[]): { items: InventoryItem[]; added: boolean } => {
+  const existingIds = new Set((existingItems || []).map((i) => i.id));
+  const missing = INITIAL_ITEMS.filter((i) => !existingIds.has(i.id));
+  if (missing.length === 0) return { items: existingItems || [], added: false };
+  return { items: [...(existingItems || []), ...missing], added: true };
+};
+
 export default function App() {
   const [state, setState] = useState<BusinessState>({
     items: [],
@@ -76,8 +84,10 @@ export default function App() {
             }
             return b;
           });
+          const { items: mergedItems } = ensureAllInitialItems(parsed.items || []);
           setState({
             ...parsed,
+            items: mergedItems,
             bartenders: cleanedBartenders,
             recipes: parsed.recipes,
             barTabs: parsed.barTabs || [],
@@ -116,8 +126,13 @@ export default function App() {
           return b;
         });
 
+        const { items: mergedItems, added: itemsAdded } = ensureAllInitialItems(data.items || []);
+        if (itemsAdded) {
+          needsSave = true;
+        }
+
         setState({
-          items: data.items || [],
+          items: mergedItems,
           recipes: data.recipes || [],
           bartenders: cleanedBartenders,
           sales: data.sales || [],
@@ -130,6 +145,7 @@ export default function App() {
 
         const updatedData = {
           ...data,
+          items: mergedItems,
           bartenders: cleanedBartenders,
         };
 
@@ -436,7 +452,8 @@ export default function App() {
     bartenderId: string,
     discountPercentage: number = 0,
     completedTabId?: string,
-    paymentMethod: "cash" | "card" = "cash"
+    paymentMethod: "cash" | "card" = "cash",
+    isEmployeeDiscount: boolean = false
   ): { success: boolean; error?: string } => {
     // Find active bartender
     const bartenderIndex = state.bartenders.findIndex((b) => b.id === bartenderId);
@@ -476,11 +493,14 @@ export default function App() {
       return item;
     });
 
-    // Calculate billing with discount
+    // Calculate billing with discount (if employee discount is checked, default to 10% discount)
+    const effectiveDiscountPct = isEmployeeDiscount ? (discountPercentage || 10) : discountPercentage;
     const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    const discountAmount = (subtotal * discountPercentage) / 100;
+    const discountAmount = (subtotal * effectiveDiscountPct) / 100;
     const totalAmount = Math.max(0, subtotal - discountAmount);
-    const commissionPaid = (totalAmount * bartender.commissionRate) / 100;
+
+    // If employee discount is active, bartender receives NO commission (0 CZK / $0)
+    const commissionPaid = isEmployeeDiscount ? 0 : (totalAmount * bartender.commissionRate) / 100;
 
     // Record sale log
     const newSale: SaleLog = {
@@ -491,8 +511,9 @@ export default function App() {
       bartenderId,
       bartenderName: bartender.name,
       commissionPaid,
-      discountPercentage,
+      discountPercentage: effectiveDiscountPct,
       discountAmount,
+      isEmployeeDiscount,
       paymentMethod,
     };
 

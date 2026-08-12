@@ -10,7 +10,8 @@ interface PosTabProps {
     bartenderId: string,
     discountPercentage: number,
     completedTabId?: string,
-    paymentMethod?: "cash" | "card"
+    paymentMethod?: "cash" | "card",
+    isEmployeeDiscount?: boolean
   ) => { success: boolean; error?: string };
   barTabs: BarTab[];
   onSaveTabs: (tabs: BarTab[]) => void;
@@ -50,13 +51,14 @@ export const PosTab: React.FC<PosTabProps> = ({
   const [deleteConfirmTabId, setDeleteConfirmTabId] = useState<string | null>(null);
   const [newTabName, setNewTabName] = useState("");
   const [discountPercentage, setDiscountPercentage] = useState<number>(0);
+  const [isEmployeeDiscount, setIsEmployeeDiscount] = useState<boolean>(false);
 
   // Notification state
   const [alert, setAlert] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
-  // Filter sellable items (only crafted drinks, food, soft, other, or items with sellPrice > 0)
+  // Filter sellable items (only crafted drinks, food, soft, other, hookah, tobacco or items with sellPrice > 0)
   const sellableItems = items.filter(
-    (item) => (item.type === "crafted" || item.category === "food" || item.category === "soft" || item.category === "other") && item.sellPrice > 0
+    (item) => (item.type === "crafted" || item.category === "food" || item.category === "soft" || item.category === "other" || item.category === "hookah" || item.category === "tobacco") && item.sellPrice > 0
   );
 
   const filteredItems = sellableItems.filter((item) => {
@@ -73,6 +75,10 @@ export const PosTab: React.FC<PosTabProps> = ({
       matchesCategory = item.category === "food";
     } else if (selectedCategory === "soft") {
       matchesCategory = item.category === "soft";
+    } else if (selectedCategory === "hookah") {
+      matchesCategory = item.category === "hookah";
+    } else if (selectedCategory === "tobacco") {
+      matchesCategory = item.category === "tobacco";
     } else if (selectedCategory === "other") {
       matchesCategory = item.category === "other";
     } else if (selectedCategory === "mixed") {
@@ -81,6 +87,8 @@ export const PosTab: React.FC<PosTabProps> = ({
         (item.category !== "beer" && item.category !== "shot" && !item.id.includes("shot") && !item.id.includes("beer") && !item.id.includes("b52"))) &&
         item.category !== "food" &&
         item.category !== "soft" &&
+        item.category !== "hookah" &&
+        item.category !== "tobacco" &&
         item.category !== "other";
     }
     
@@ -161,11 +169,24 @@ export const PosTab: React.FC<PosTabProps> = ({
       price: c.item.sellPrice,
     }));
 
-    const result = onCompleteSale(saleItems, selectedBartenderId, discountPercentage, activeTabId || undefined, paymentMethod);
+    const result = onCompleteSale(
+      saleItems,
+      selectedBartenderId,
+      discountPercentage,
+      activeTabId || undefined,
+      paymentMethod,
+      isEmployeeDiscount
+    );
     if (result.success) {
-      triggerAlert("success", `Účtenka byla úspěšně zaplacena (${paymentMethod === "cash" ? "Hotově" : "Kartou"}) a provize připsána!`);
+      triggerAlert(
+        "success",
+        isEmployeeDiscount
+          ? `Účtenka byla zaplacena se zaměstnaneckou slevou 10% (${paymentMethod === "cash" ? "Hotově" : "Kartou"}) bez provize!`
+          : `Účtenka byla úspěšně zaplacena (${paymentMethod === "cash" ? "Hotově" : "Kartou"}) a provize připsána!`
+      );
       setCart([]);
       setDiscountPercentage(0);
+      setIsEmployeeDiscount(false);
       setPaymentMethod("cash"); // reset payment method to cash after checkout
       
       // Clear active tab locally since it's already deleted atomically on the server/state
@@ -182,7 +203,7 @@ export const PosTab: React.FC<PosTabProps> = ({
   };
 
   const getCommissionEstimate = () => {
-    if (!activeBartender) return 0;
+    if (!activeBartender || isEmployeeDiscount) return 0;
     const total = getCartTotal();
     const discountAmount = (total * discountPercentage) / 100;
     const discountedTotal = Math.max(0, total - discountAmount);
@@ -268,6 +289,8 @@ export const PosTab: React.FC<PosTabProps> = ({
                 { id: "beer", label: "Piva" },
                 { id: "food", label: "Jídlo" },
                 { id: "soft", label: "Nealko" },
+                { id: "hookah", label: "💨 Dýmky" },
+                { id: "tobacco", label: "🚬 Tabák" },
                 { id: "other", label: "Ostatní" },
               ].map((cat) => (
                 <button
@@ -616,39 +639,92 @@ export const PosTab: React.FC<PosTabProps> = ({
           {/* Pricing & Checkout Summary */}
           <div className="bg-zinc-950 border-t border-tequila-border p-4 space-y-4">
             {/* DISCOUNT CONTROL SECTION */}
-            <div className="border-b border-tequila-border/40 pb-3 space-y-2">
-              <label className="block text-[9px] text-zinc-500 font-mono font-bold uppercase tracking-wider">
-                Procentní Sleva (%)
-              </label>
-              <div className="flex gap-1">
-                {[0, 5, 10, 15, 20, 50].map((pct) => (
-                  <button
-                    key={pct}
-                    onClick={() => setDiscountPercentage(pct)}
-                    className={`flex-1 py-1 rounded text-[10px] font-mono font-bold transition-all cursor-pointer border ${
-                      discountPercentage === pct
-                        ? "bg-tequila-orange border-tequila-orange text-black font-extrabold"
-                        : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-850"
-                    }`}
-                  >
-                    {pct}%
-                  </button>
-                ))}
+            <div className="border-b border-tequila-border/40 pb-3 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <label className="block text-[9px] text-zinc-500 font-mono font-bold uppercase tracking-wider">
+                  Sleva / Zaměstnanecká
+                </label>
+                {isEmployeeDiscount && (
+                  <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-purple-950/80 border border-purple-500/40 text-purple-300 flex items-center gap-1">
+                    <LucideIcon name="UserCheck" className="w-3 h-3 text-purple-400" />
+                    Zaměstnanecká (Bez provize)
+                  </span>
+                )}
               </div>
-              <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 px-2.5 py-1 rounded">
-                <span className="text-[10px] text-zinc-500 font-mono uppercase font-bold shrink-0">Vlastní %:</span>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={discountPercentage === 0 ? "" : discountPercentage}
-                  onChange={(e) => {
-                    const val = e.target.value === "" ? 0 : Math.min(100, Math.max(0, Number(e.target.value)));
-                    setDiscountPercentage(val);
-                  }}
-                  className="w-full bg-transparent text-xs text-white font-mono focus:outline-none text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  placeholder="0"
-                />
+
+              {/* Employee Discount Toggle Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (isEmployeeDiscount) {
+                    setIsEmployeeDiscount(false);
+                    setDiscountPercentage(0);
+                  } else {
+                    setIsEmployeeDiscount(true);
+                    setDiscountPercentage(10);
+                  }
+                }}
+                className={`w-full py-2 px-3 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer border flex items-center justify-between gap-2 ${
+                  isEmployeeDiscount
+                    ? "bg-purple-950/60 border-purple-500/80 text-purple-200 shadow-sm"
+                    : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-850"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <div className={`p-1 rounded ${isEmployeeDiscount ? "bg-purple-500 text-black font-bold" : "bg-zinc-800 text-zinc-400"}`}>
+                    <LucideIcon name="UserCheck" className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="text-left">
+                    <span className="block font-bold text-xs">Zaměstnanecká sleva (10%)</span>
+                    <span className="block text-[9px] text-zinc-400 font-normal">Stornuje provizi barmana na 0 Kč</span>
+                  </div>
+                </div>
+                <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${isEmployeeDiscount ? "bg-purple-500 border-purple-400 text-black font-extrabold" : "border-zinc-700 bg-zinc-950"}`}>
+                  {isEmployeeDiscount && <LucideIcon name="Check" className="w-3 h-3 stroke-[3]" />}
+                </div>
+              </button>
+
+              {/* Standard Percentage Presets */}
+              <div className="space-y-1.5">
+                <div className="flex gap-1">
+                  {[0, 5, 10, 15, 20, 50].map((pct) => (
+                    <button
+                      key={pct}
+                      type="button"
+                      onClick={() => {
+                        setDiscountPercentage(pct);
+                        if (pct !== 10) {
+                          setIsEmployeeDiscount(false);
+                        }
+                      }}
+                      className={`flex-1 py-1 rounded text-[10px] font-mono font-bold transition-all cursor-pointer border ${
+                        discountPercentage === pct && !isEmployeeDiscount
+                          ? "bg-tequila-orange border-tequila-orange text-black font-extrabold"
+                          : discountPercentage === pct && isEmployeeDiscount
+                          ? "bg-purple-900/80 border-purple-500 text-purple-200 font-extrabold"
+                          : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-850"
+                      }`}
+                    >
+                      {pct}%
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 px-2.5 py-1 rounded">
+                  <span className="text-[10px] text-zinc-500 font-mono uppercase font-bold shrink-0">Vlastní %:</span>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={discountPercentage === 0 ? "" : discountPercentage}
+                    onChange={(e) => {
+                      const val = e.target.value === "" ? 0 : Math.min(100, Math.max(0, Number(e.target.value)));
+                      setDiscountPercentage(val);
+                      if (val !== 10) setIsEmployeeDiscount(false);
+                    }}
+                    className="w-full bg-transparent text-xs text-white font-mono focus:outline-none text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    placeholder="0"
+                  />
+                </div>
               </div>
             </div>
 
@@ -690,9 +766,7 @@ export const PosTab: React.FC<PosTabProps> = ({
               const total = getCartTotal();
               const discountAmt = (total * discountPercentage) / 100;
               const grandTotal = Math.max(0, total - discountAmt);
-              const commissionEstimate = activeBartender
-                ? (grandTotal * activeBartender.commissionRate) / 100
-                : 0;
+              const commissionEstimate = getCommissionEstimate();
 
               return (
                 <div className="space-y-1.5 text-[11px] font-mono">
@@ -703,15 +777,17 @@ export const PosTab: React.FC<PosTabProps> = ({
                   
                   {discountPercentage > 0 && (
                     <div className="flex justify-between text-rose-450 font-bold">
-                      <span>Sleva ({discountPercentage}%)</span>
+                      <span>Sleva ({discountPercentage}%{isEmployeeDiscount ? " Zaměst." : ""})</span>
                       <span>-${discountAmt.toFixed(2)}</span>
                     </div>
                   )}
                   
-                  {activeBartender && activeBartender.commissionRate > 0 && (
-                    <div className="flex justify-between text-tequila-yellow">
-                      <span>Provize ({activeBartender.commissionRate}%)</span>
-                      <span className="font-bold">
+                  {activeBartender && (
+                    <div className={`flex justify-between ${isEmployeeDiscount ? "text-rose-400" : "text-tequila-yellow"}`}>
+                      <span>
+                        Provize ({isEmployeeDiscount ? "0% - Zaměst. sleva" : `${activeBartender.commissionRate}%`})
+                      </span>
+                      <span className={`font-bold ${isEmployeeDiscount ? "line-through opacity-70" : ""}`}>
                         +${commissionEstimate.toFixed(2)}
                       </span>
                     </div>
@@ -736,18 +812,24 @@ export const PosTab: React.FC<PosTabProps> = ({
 
             {/* Bartender notice info */}
             {activeBartender ? (
-              <div className="bg-tequila-card border border-tequila-border p-3 rounded flex items-center gap-2.5">
-                <div className="p-1 rounded bg-tequila-yellow/10 text-tequila-yellow shrink-0">
-                  <LucideIcon name="Coins" className="w-3.5 h-3.5" />
+              <div className={`border p-3 rounded flex items-center gap-2.5 ${isEmployeeDiscount ? "bg-purple-950/30 border-purple-500/40 text-purple-200" : "bg-tequila-card border-tequila-border"}`}>
+                <div className={`p-1 rounded shrink-0 ${isEmployeeDiscount ? "bg-purple-500/20 text-purple-300" : "bg-tequila-yellow/10 text-tequila-yellow"}`}>
+                  <LucideIcon name={isEmployeeDiscount ? "UserCheck" : "Coins"} className="w-3.5 h-3.5" />
                 </div>
                 <div className="text-[10px] leading-snug font-mono">
                   <p className="text-zinc-500 uppercase tracking-tight">Provize pro barmana:</p>
-                  <p className="font-bold text-gray-300">
-                    {activeBartender.name} obdrží{" "}
-                    <span className="text-tequila-yellow font-bold">
-                      ${getCommissionEstimate().toFixed(2)}
-                    </span>
-                  </p>
+                  {isEmployeeDiscount ? (
+                    <p className="font-bold text-purple-300">
+                      {activeBartender.name}: <span className="text-rose-400 font-bold">$0.00 (Zaměstnanecká sleva – bez provize)</span>
+                    </p>
+                  ) : (
+                    <p className="font-bold text-gray-300">
+                      {activeBartender.name} obdrží{" "}
+                      <span className="text-tequila-yellow font-bold">
+                        ${getCommissionEstimate().toFixed(2)}
+                      </span>
+                    </p>
+                  )}
                 </div>
               </div>
             ) : (
