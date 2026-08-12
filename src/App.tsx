@@ -114,6 +114,11 @@ export default function App() {
     // 2. Subscribe to Firebase Firestore for cloud state persistence
     const docRef = doc(db, "company", "state");
     const unsubscribe = onSnapshot(docRef, async (snapshot) => {
+      // Ignore local optimistic writes to prevent re-triggering setDoc write streams in an infinite loop
+      if (snapshot.metadata.hasPendingWrites) {
+        return;
+      }
+
       if (snapshot.exists()) {
         const data = snapshot.data() as BusinessState;
         
