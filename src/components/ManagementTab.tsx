@@ -85,35 +85,77 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
   const [editShiftEnd, setEditShiftEnd] = useState<string>("");
 
   // Export Subsidies state
-  const todayStr = new Date().toISOString().substring(0, 7); // "YYYY-MM"
+  const pad = (n: number) => (n < 10 ? "0" + n : String(n));
+  const currentNow = new Date();
+  const todayStr = `${currentNow.getFullYear()}-${pad(currentNow.getMonth() + 1)}`;
   const [selectedExportMonth, setSelectedExportMonth] = useState(todayStr);
 
-  const generateLast12Months = () => {
-    const months = [];
+  const generateMonthsList = () => {
+    const monthsMap = new Map<string, string>();
     const now = new Date();
+
+    // Generate last 12 months
     for (let i = 0; i < 12; i++) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const value = d.toISOString().substring(0, 7); // "YYYY-MM"
+      const value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
       const label = d.toLocaleString("cs-CZ", { month: "long", year: "numeric" });
-      months.push({ value, label: label.charAt(0).toUpperCase() + label.slice(1) });
+      monthsMap.set(value, label.charAt(0).toUpperCase() + label.slice(1));
     }
-    return months;
+
+    // Include any historical months from shift logs
+    (shifts || []).forEach((s) => {
+      const dateStr = s.endTime || s.startTime;
+      if (dateStr) {
+        const d = new Date(dateStr);
+        if (!isNaN(d.getTime())) {
+          const value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
+          if (!monthsMap.has(value)) {
+            const label = d.toLocaleString("cs-CZ", { month: "long", year: "numeric" });
+            monthsMap.set(value, label.charAt(0).toUpperCase() + label.slice(1));
+          }
+        }
+      }
+    });
+
+    // Include any historical months from sales logs
+    (sales || []).forEach((s) => {
+      if (s.timestamp) {
+        const d = new Date(s.timestamp);
+        if (!isNaN(d.getTime())) {
+          const value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
+          if (!monthsMap.has(value)) {
+            const label = d.toLocaleString("cs-CZ", { month: "long", year: "numeric" });
+            monthsMap.set(value, label.charAt(0).toUpperCase() + label.slice(1));
+          }
+        }
+      }
+    });
+
+    // Sort descending by YYYY-MM
+    return Array.from(monthsMap.entries())
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([value, label]) => ({ value, label }));
   };
 
   const handleExportSubsidiesCSV = () => {
     const [year, month] = selectedExportMonth.split("-").map(Number);
-    const monthsList = generateLast12Months();
+    const monthsList = generateMonthsList();
     const label = monthsList.find(m => m.value === selectedExportMonth)?.label || selectedExportMonth;
     
     // Filter shifts completed in this month
     const monthlyShifts = (shifts || []).filter((s) => {
-      const d = new Date(s.endTime);
+      const dateStr = s.endTime || s.startTime;
+      if (!dateStr) return false;
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return false;
       return d.getFullYear() === year && (d.getMonth() + 1) === month;
     });
 
     // Filter sales made in this month
     const monthlySales = sales.filter((s) => {
+      if (!s.timestamp) return false;
       const d = new Date(s.timestamp);
+      if (isNaN(d.getTime())) return false;
       return d.getFullYear() === year && (d.getMonth() + 1) === month;
     });
 
@@ -2053,7 +2095,7 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
                     onChange={(e) => setSelectedExportMonth(e.target.value)}
                     className="w-full bg-zinc-950 hover:bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-xs text-gray-200 px-3.5 py-2.5 rounded-xl transition-all font-mono uppercase focus:outline-none focus:border-tequila-orange cursor-pointer appearance-none"
                   >
-                    {generateLast12Months().map((m) => (
+                    {generateMonthsList().map((m) => (
                       <option key={m.value} value={m.value} className="bg-zinc-950 text-gray-200">
                         {m.label}
                       </option>
@@ -2069,11 +2111,16 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
               {(() => {
                 const [year, month] = selectedExportMonth.split("-").map(Number);
                 const monthlyShifts = (shifts || []).filter((s) => {
-                  const d = new Date(s.endTime);
+                  const dateStr = s.endTime || s.startTime;
+                  if (!dateStr) return false;
+                  const d = new Date(dateStr);
+                  if (isNaN(d.getTime())) return false;
                   return d.getFullYear() === year && (d.getMonth() + 1) === month;
                 });
                 const monthlySales = sales.filter((s) => {
+                  if (!s.timestamp) return false;
                   const d = new Date(s.timestamp);
+                  if (isNaN(d.getTime())) return false;
                   return d.getFullYear() === year && (d.getMonth() + 1) === month;
                 });
 
