@@ -651,6 +651,17 @@ export default function App() {
     saveState({ ...state, items: updated });
   };
 
+  const handleBatchUpdateStock = (updates: { itemId: string; newStock: number }[]) => {
+    const updateMap = new Map(updates.map((u) => [u.itemId, Math.max(0, u.newStock)]));
+    const updated = state.items.map((item) => {
+      if (updateMap.has(item.id)) {
+        return { ...item, stock: updateMap.get(item.id)! };
+      }
+      return item;
+    });
+    saveState({ ...state, items: updated });
+  };
+
   const handleUpdateItem = (updatedItem: InventoryItem) => {
     const updated = state.items.map((item) => {
       if (item.id === updatedItem.id) {
@@ -1053,7 +1064,14 @@ export default function App() {
 
   // Redirect Barman to valid tabs if they are on an inaccessible one
   useEffect(() => {
-    if (session && session.role === "barman" && activeTab !== "pos" && activeTab !== "shift") {
+    if (
+      session &&
+      session.role === "barman" &&
+      activeTab !== "pos" &&
+      activeTab !== "shift" &&
+      activeTab !== "craft" &&
+      activeTab !== "inventory"
+    ) {
       setActiveTab("pos");
     }
   }, [session, activeTab]);
@@ -1258,45 +1276,45 @@ export default function App() {
             </button>
           )}
 
-          {/* TABS 3, 4, 5 (Visible to Manager Only) */}
+          {/* TAB 3: CRAFTING (Visible to Bartender & Manager) */}
+          <button
+            onClick={() => setActiveTab("craft")}
+            className={`flex-1 min-w-[120px] py-3.5 rounded-xl font-display font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              activeTab === "craft"
+                ? "bg-tequila-orange text-white shadow-lg shadow-tequila-orange/15 font-extrabold"
+                : "text-gray-400 hover:text-white"
+            }`}
+          >
+            <LucideIcon name="ChefHat" className="w-4 h-4" />
+            Výroba & Míchání
+          </button>
+
+          {/* TAB 4: INVENTORY (Visible to Bartender & Manager) */}
+          <button
+            onClick={() => setActiveTab("inventory")}
+            className={`flex-1 min-w-[120px] py-3.5 rounded-xl font-display font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              activeTab === "inventory"
+                ? "bg-tequila-orange text-white shadow-lg shadow-tequila-orange/15 font-extrabold"
+                : "text-gray-400 hover:text-white"
+            }`}
+          >
+            <LucideIcon name="ShoppingBag" className="w-4 h-4" />
+            Sklad & Nákup
+          </button>
+
+          {/* TAB 5: MANAGEMENT (Visible to Manager Only) */}
           {session.role === "manager" && (
-            <>
-              <button
-                onClick={() => setActiveTab("craft")}
-                className={`flex-1 min-w-[120px] py-3.5 rounded-xl font-display font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                  activeTab === "craft"
-                    ? "bg-tequila-orange text-white shadow-lg shadow-tequila-orange/15 font-extrabold"
-                    : "text-gray-400 hover:text-white"
-                }`}
-              >
-                <LucideIcon name="ChefHat" className="w-4 h-4" />
-                Výroba & Míchání
-              </button>
-
-              <button
-                onClick={() => setActiveTab("inventory")}
-                className={`flex-1 min-w-[120px] py-3.5 rounded-xl font-display font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                  activeTab === "inventory"
-                    ? "bg-tequila-orange text-white shadow-lg shadow-tequila-orange/15 font-extrabold"
-                    : "text-gray-400 hover:text-white"
-                }`}
-              >
-                <LucideIcon name="ShoppingBag" className="w-4 h-4" />
-                Sklad & Nákup
-              </button>
-
-              <button
-                onClick={() => setActiveTab("management")}
-                className={`flex-1 min-w-[120px] py-3.5 rounded-xl font-display font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                  activeTab === "management"
-                    ? "bg-tequila-orange text-white shadow-lg shadow-tequila-orange/15 font-extrabold"
-                    : "text-gray-400 hover:text-white"
-                }`}
-              >
-                <LucideIcon name="Settings" className="w-4 h-4" />
-                Manažer & Provize
-              </button>
-            </>
+            <button
+              onClick={() => setActiveTab("management")}
+              className={`flex-1 min-w-[120px] py-3.5 rounded-xl font-display font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                activeTab === "management"
+                  ? "bg-tequila-orange text-white shadow-lg shadow-tequila-orange/15 font-extrabold"
+                  : "text-gray-400 hover:text-white"
+              }`}
+            >
+              <LucideIcon name="Settings" className="w-4 h-4" />
+              Manažer & Provize
+            </button>
           )}
         </div>
       </nav>
@@ -1326,7 +1344,7 @@ export default function App() {
           />
         )}
 
-        {activeTab === "craft" && session.role === "manager" && (
+        {activeTab === "craft" && (
           <CraftingTab
             items={state.items}
             recipes={state.recipes}
@@ -1334,13 +1352,14 @@ export default function App() {
           />
         )}
 
-        {activeTab === "inventory" && session.role === "manager" && (
+        {activeTab === "inventory" && (
           <InventoryTab
             items={state.items}
             recipes={state.recipes}
             registerBalance={state.registerBalance}
             onPurchaseSupplies={handlePurchaseSupplies}
             onUpdateStock={handleUpdateStock}
+            onBatchUpdateStock={handleBatchUpdateStock}
             onUpdateItem={handleUpdateItem}
             onAddNewItem={handleAddNewItem}
             onDeleteItem={handleDeleteItem}

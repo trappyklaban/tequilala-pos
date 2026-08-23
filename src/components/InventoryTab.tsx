@@ -11,6 +11,7 @@ interface InventoryTabProps {
     payFromRegister: boolean
   ) => { success: boolean; error?: string };
   onUpdateStock: (itemId: string, newStock: number) => void;
+  onBatchUpdateStock?: (updates: { itemId: string; newStock: number }[]) => void;
   onUpdateItem: (updatedItem: InventoryItem) => void;
   onAddNewItem: (item: Omit<InventoryItem, "id">) => void;
   onDeleteItem: (id: string) => void;
@@ -22,11 +23,12 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
   registerBalance,
   onPurchaseSupplies,
   onUpdateStock,
+  onBatchUpdateStock,
   onUpdateItem,
   onAddNewItem,
   onDeleteItem,
 }) => {
-  const [subTab, setSubTab] = useState<"stock" | "buy" | "add">("stock");
+  const [subTab, setSubTab] = useState<"stock" | "bulk" | "buy" | "add">("stock");
   
   // Stock tab search/filters
   const [searchStock, setSearchStock] = useState("");
@@ -34,6 +36,11 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
   
   // Quick inline stock & price edit state
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
+
+  // Bulk Edit / Inventura State
+  const [bulkDraft, setBulkDraft] = useState<{ [itemId: string]: number }>({});
+  const [bulkSearch, setBulkSearch] = useState("");
+  const [bulkFilterCategory, setBulkFilterCategory] = useState<"all" | ItemCategory>("all");
 
   // Buy tab cart state
   const [buyCart, setBuyCart] = useState<{ [itemId: string]: number }>({});
@@ -72,6 +79,99 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
     onUpdateItem(editingItem);
     setEditingItem(null);
     triggerAlert("success", `Položka "${editingItem.name}" byla úspěšně upravena!`);
+  };
+
+  // 1B. BULK EDIT / INVENTURA LOGIC
+  const initBulkDraft = () => {
+    const draft: { [itemId: string]: number } = {};
+    items.forEach((it) => {
+      draft[it.id] = it.stock;
+    });
+    setBulkDraft(draft);
+  };
+
+  const getDraftStock = (itemId: string, fallbackStock: number) => {
+    return bulkDraft[itemId] !== undefined ? bulkDraft[itemId] : fallbackStock;
+  };
+
+  const handleBulkChange = (itemId: string, newStock: number) => {
+    setBulkDraft((prev) => ({
+      ...prev,
+      [itemId]: Math.max(0, newStock),
+    }));
+  };
+
+  const handleBulkAdjust = (itemId: string, delta: number, currentStock: number) => {
+    const curr = getDraftStock(itemId, currentStock);
+    handleBulkChange(itemId, Math.max(0, curr + delta));
+  };
+
+  const handleBulkFillMin = (filteredList: InventoryItem[]) => {
+    setBulkDraft((prev) => {
+      const next = { ...prev };
+      let filledCount = 0;
+      filteredList.forEach((it) => {
+        const curr = next[it.id] !== undefined ? next[it.id] : it.stock;
+        if (curr < it.minStock) {
+          next[it.id] = it.minStock;
+          filledCount++;
+        }
+      });
+      return next;
+    });
+    triggerAlert("success", "Položky pod minimálním stavem byly doplněny na minimum.");
+  };
+
+  const handleBulkAddAll = (filteredList: InventoryItem[], delta: number) => {
+    setBulkDraft((prev) => {
+      const next = { ...prev };
+      filteredList.forEach((it) => {
+        const curr = next[it.id] !== undefined ? next[it.id] : it.stock;
+        next[it.id] = Math.max(0, curr + delta);
+      });
+      return next;
+    });
+    triggerAlert("success", `Upraveno o ${delta > 0 ? `+${delta}` : delta} ks u ${filteredList.length} zobrazených položek.`);
+  };
+
+  const handleBulkZeroAll = (filteredList: InventoryItem[]) => {
+    setBulkDraft((prev) => {
+      const next = { ...prev };
+      filteredList.forEach((it) => {
+        next[it.id] = 0;
+      });
+      return next;
+    });
+    triggerAlert("success", `Vynulováno ${filteredList.length} zobrazených položek.`);
+  };
+
+  const handleBulkResetToOriginal = () => {
+    initBulkDraft();
+    triggerAlert("success", "Hodnoty inventury byly vráceny na původní stav.");
+  };
+
+  const handleSaveBulk = () => {
+    const updates: { itemId: string; newStock: number }[] = [];
+    items.forEach((it) => {
+      const draftVal = bulkDraft[it.id];
+      if (draftVal !== undefined && draftVal !== it.stock) {
+        updates.push({ itemId: it.id, newStock: Math.max(0, draftVal) });
+      }
+    });
+
+    if (updates.length === 0) {
+      triggerAlert("error", "Nebyly provedeny žádné změny v počtech.");
+      return;
+    }
+
+    if (onBatchUpdateStock) {
+      onBatchUpdateStock(updates);
+    } else {
+      updates.forEach((u) => onUpdateStock(u.itemId, u.newStock));
+    }
+
+    triggerAlert("success", `Hromadná inventura uložena! Úspěšně upraveno ${updates.length} položek.`);
+    setSubTab("stock");
   };
 
   // 2. SUPPLY SHOP LOGIC
@@ -198,7 +298,7 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
         </div>
 
         {/* Sub Navigation */}
-        <div className="flex bg-zinc-950 p-1 rounded border border-tequila-border self-start sm:self-auto">
+        <div className="flex flex-wrap bg-zinc-950 p-1 rounded border border-tequila-border self-start sm:self-auto gap-1">
           <button
             onClick={() => setSubTab("stock")}
             className={`px-3 py-1.5 rounded text-[10px] font-mono font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${
@@ -209,6 +309,20 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
           >
             <LucideIcon name="BarChart3" className="w-3.5 h-3.5" />
             Zásoby
+          </button>
+          <button
+            onClick={() => {
+              initBulkDraft();
+              setSubTab("bulk");
+            }}
+            className={`px-3 py-1.5 rounded text-[10px] font-mono font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${
+              subTab === "bulk"
+                ? "bg-tequila-orange text-black font-black"
+                : "text-zinc-500 hover:text-white"
+            }`}
+          >
+            <LucideIcon name="SlidersHorizontal" className="w-3.5 h-3.5" />
+            Hromadná úprava
           </button>
           <button
             onClick={() => setSubTab("buy")}
@@ -239,7 +353,7 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
       {subTab === "stock" && (
         <div className="space-y-4">
           {/* Stock Search and Quick Categorization */}
-          <div className="bg-tequila-card/85 border border-tequila-border p-4 rounded-lg flex flex-col md:flex-row gap-3">
+          <div className="bg-tequila-card/85 border border-tequila-border p-4 rounded-lg flex flex-col md:flex-row gap-3 items-stretch md:items-center">
             <input
               type="text"
               placeholder="Vyhledat ve skladě..."
@@ -247,6 +361,18 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
               onChange={(e) => setSearchStock(e.target.value)}
               className="flex-1 bg-zinc-950 border border-tequila-border px-3.5 py-2 rounded-md text-xs font-mono focus:outline-none focus:border-tequila-orange text-white placeholder-zinc-700"
             />
+
+            <button
+              onClick={() => {
+                initBulkDraft();
+                setSubTab("bulk");
+              }}
+              className="px-3.5 py-2 bg-zinc-950 border border-tequila-orange/40 hover:border-tequila-orange hover:bg-tequila-orange hover:text-black text-tequila-orange rounded-md text-xs font-mono font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap shadow-sm"
+              title="Přejít do režimu hromadné úpravy počtů"
+            >
+              <LucideIcon name="SlidersHorizontal" className="w-3.5 h-3.5" />
+              ⚡ Hromadná úprava počtů
+            </button>
             
             <div className="flex gap-1 overflow-x-auto">
               {[
@@ -389,12 +515,30 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
                                 </div>
                               </div>
                             ) : (
-                              <div className="space-y-1 max-w-[130px]">
-                                <div className="flex items-center justify-between text-[10px] font-bold">
+                              <div className="space-y-1.5 min-w-[140px] max-w-[160px]">
+                                <div className="flex items-center justify-between text-[10px] font-bold gap-2">
                                   <span className={isOut ? "text-rose-400" : isLow ? "text-amber-400" : "text-emerald-400"}>
                                     {item.stock < 1 ? item.stock.toFixed(2) : Math.floor(item.stock)} ks
                                   </span>
-                                  <span className="text-zinc-600 text-[9px]">min: {item.minStock}</span>
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      onClick={() => onUpdateStock(item.id, Math.max(0, item.stock - 1))}
+                                      className="w-5 h-5 bg-zinc-950 hover:bg-zinc-850 hover:border-tequila-orange hover:text-white text-zinc-400 border border-zinc-800 rounded flex items-center justify-center font-bold text-xs active:scale-95 transition-all cursor-pointer select-none"
+                                      title="Odebrat 1 ks"
+                                    >
+                                      -
+                                    </button>
+                                    <button
+                                      onClick={() => onUpdateStock(item.id, item.stock + 1)}
+                                      className="w-5 h-5 bg-zinc-950 hover:bg-zinc-850 hover:border-tequila-orange hover:text-white text-zinc-400 border border-zinc-800 rounded flex items-center justify-center font-bold text-xs active:scale-95 transition-all cursor-pointer select-none"
+                                      title="Přidat 1 ks"
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                </div>
+                                <div className="flex items-center justify-between text-[8px] text-zinc-500">
+                                  <span>min: {item.minStock} ks</span>
                                 </div>
                                 {/* Small capacity bar */}
                                 <div className="h-1.5 bg-zinc-950 rounded overflow-hidden">
@@ -403,7 +547,7 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
                                       isOut ? "bg-rose-600" : isLow ? "bg-amber-500 animate-pulse" : "bg-emerald-500"
                                     }`}
                                     style={{
-                                      width: `${Math.min(100, (item.stock / (item.minStock * 4)) * 100)}%`,
+                                      width: `${Math.min(100, (item.stock / (item.minStock * 4 || 20)) * 100)}%`,
                                     }}
                                   ></div>
                                 </div>
@@ -556,6 +700,388 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
           </div>
         </div>
       )}
+
+      {/* SUB TAB 1B: BULK INVENTORY EDITING (INVENTURA) */}
+      {subTab === "bulk" && (() => {
+        const filteredBulkItems = items.filter((item) => {
+          const matchesSearch = item.name.toLowerCase().includes(bulkSearch.toLowerCase());
+          const matchesCategory = bulkFilterCategory === "all" || item.category === bulkFilterCategory;
+          return matchesSearch && matchesCategory;
+        });
+
+        const changedItemsList = items.filter((it) => {
+          const draftVal = bulkDraft[it.id];
+          return draftVal !== undefined && draftVal !== it.stock;
+        });
+
+        const totalStockDelta = changedItemsList.reduce((sum, it) => {
+          const draftVal = bulkDraft[it.id] ?? it.stock;
+          return sum + (draftVal - it.stock);
+        }, 0);
+
+        return (
+          <div className="space-y-4">
+            {/* Bulk Toolbar & Helper Panel */}
+            <div className="bg-tequila-card border border-tequila-border p-4 rounded-lg space-y-4">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-tequila-border/50">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded bg-tequila-orange/10 border border-tequila-orange/30 text-tequila-orange">
+                    <LucideIcon name="SlidersHorizontal" className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-mono font-bold text-white uppercase tracking-wider">
+                      Hromadná úprava počtů (Inventura skladu)
+                    </h3>
+                    <p className="text-[11px] text-zinc-500 font-mono">
+                      Rychlé nastavení, inventurní přepočet nebo hromadné navyšování položek baru.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-start md:self-auto">
+                  <div className={`px-3 py-1.5 rounded text-xs font-mono font-bold border ${
+                    changedItemsList.length > 0
+                      ? "bg-amber-950/40 border-amber-500/30 text-amber-400"
+                      : "bg-zinc-950 border-zinc-850 text-zinc-500"
+                  }`}>
+                    Upraveno: <span className="text-white font-black">{changedItemsList.length}</span> položek
+                    {changedItemsList.length > 0 && (
+                      <span className={`ml-2 ${totalStockDelta >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                        ({totalStockDelta >= 0 ? `+${totalStockDelta}` : totalStockDelta} ks)
+                      </span>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={handleSaveBulk}
+                    disabled={changedItemsList.length === 0}
+                    className={`px-4 py-2 rounded text-xs font-mono font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-md ${
+                      changedItemsList.length > 0
+                        ? "bg-emerald-600 hover:bg-emerald-500 text-black font-black"
+                        : "bg-zinc-900 border border-zinc-800 text-zinc-600 cursor-not-allowed"
+                    }`}
+                  >
+                    <LucideIcon name="Check" className="w-4 h-4" />
+                    Uložit změny
+                  </button>
+                </div>
+              </div>
+
+              {/* Filters & Search */}
+              <div className="flex flex-col md:flex-row gap-3">
+                <input
+                  type="text"
+                  placeholder="Vyhledat v inventuře..."
+                  value={bulkSearch}
+                  onChange={(e) => setBulkSearch(e.target.value)}
+                  className="flex-1 bg-zinc-950 border border-tequila-border px-3.5 py-2 rounded-md text-xs font-mono focus:outline-none focus:border-tequila-orange text-white placeholder-zinc-700"
+                />
+
+                <div className="flex gap-1 overflow-x-auto">
+                  {[
+                    { id: "all", label: "Vše" },
+                    { id: "alcohol", label: "Alkohol" },
+                    { id: "soft", label: "Nealko" },
+                    { id: "garnish", label: "Ozdoby" },
+                    { id: "drink", label: "Míchané" },
+                    { id: "shot", label: "Shoty" },
+                    { id: "beer", label: "Piva" },
+                    { id: "food", label: "Jídlo" },
+                    { id: "hookah", label: "Dýmky" },
+                    { id: "tobacco", label: "Tabák" },
+                    { id: "other", label: "Ostatní" },
+                  ].map((cat) => (
+                    <button
+                      key={cat.id}
+                      onClick={() => setBulkFilterCategory(cat.id as any)}
+                      className={`px-3 py-1 rounded text-[10px] font-mono font-bold uppercase tracking-wider whitespace-nowrap transition-all cursor-pointer ${
+                        bulkFilterCategory === cat.id
+                          ? "bg-tequila-orange text-black font-black"
+                          : "bg-zinc-950 border border-zinc-900 text-zinc-500 hover:text-white"
+                      }`}
+                    >
+                      {cat.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Fast Bulk Actions for visible items */}
+              <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-zinc-900 font-mono text-[10px]">
+                <span className="text-zinc-500 font-bold uppercase mr-1">Rychlé akce (zobrazeno {filteredBulkItems.length} položek):</span>
+                
+                <button
+                  onClick={() => handleBulkFillMin(filteredBulkItems)}
+                  className="px-2.5 py-1 bg-zinc-950 hover:bg-zinc-900 border border-zinc-800 hover:border-amber-500/50 text-amber-400 rounded font-bold transition-all flex items-center gap-1 cursor-pointer"
+                  title="Doplní všechny položky pod minimálním stavem na jejich minimální zásobu"
+                >
+                  <LucideIcon name="Zap" className="w-3 h-3 text-amber-400" />
+                  Doplnit pod minimem
+                </button>
+
+                <button
+                  onClick={() => handleBulkAddAll(filteredBulkItems, 10)}
+                  className="px-2.5 py-1 bg-zinc-950 hover:bg-zinc-900 border border-zinc-800 hover:border-emerald-500/50 text-emerald-400 rounded font-bold transition-all cursor-pointer"
+                >
+                  +10 ks všem
+                </button>
+
+                <button
+                  onClick={() => handleBulkAddAll(filteredBulkItems, 5)}
+                  className="px-2.5 py-1 bg-zinc-950 hover:bg-zinc-900 border border-zinc-800 hover:border-emerald-500/50 text-emerald-400 rounded font-bold transition-all cursor-pointer"
+                >
+                  +5 ks všem
+                </button>
+
+                <button
+                  onClick={() => handleBulkAddAll(filteredBulkItems, 1)}
+                  className="px-2.5 py-1 bg-zinc-950 hover:bg-zinc-900 border border-zinc-800 hover:border-emerald-500/50 text-emerald-400 rounded font-bold transition-all cursor-pointer"
+                >
+                  +1 ks všem
+                </button>
+
+                <button
+                  onClick={() => handleBulkAddAll(filteredBulkItems, -5)}
+                  className="px-2.5 py-1 bg-zinc-950 hover:bg-zinc-900 border border-zinc-800 hover:border-rose-500/50 text-rose-400 rounded font-bold transition-all cursor-pointer"
+                >
+                  -5 ks všem
+                </button>
+
+                <button
+                  onClick={() => handleBulkZeroAll(filteredBulkItems)}
+                  className="px-2.5 py-1 bg-zinc-950 hover:bg-rose-950/30 border border-zinc-800 hover:border-rose-500/40 text-zinc-400 hover:text-rose-400 rounded font-bold transition-all cursor-pointer"
+                  title="Vynuluje zásoby pro všechny zobrazené položky"
+                >
+                  Vynulovat (0 ks)
+                </button>
+
+                <button
+                  onClick={handleBulkResetToOriginal}
+                  className="px-2.5 py-1 bg-zinc-950 hover:bg-zinc-900 border border-zinc-800 hover:border-zinc-600 text-zinc-400 hover:text-white rounded font-bold transition-all ml-auto cursor-pointer"
+                  title="Vrátit všechny koncepty změn zpět na aktuální stav skladu"
+                >
+                  Obnovit původní
+                </button>
+              </div>
+            </div>
+
+            {/* Bulk Inventory Table */}
+            <div className="bg-tequila-card border border-tequila-border rounded-lg overflow-hidden font-mono">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-zinc-950 text-[9px] uppercase font-bold tracking-wider text-zinc-500 border-b border-tequila-border">
+                      <th className="p-3.5">Položka</th>
+                      <th className="p-3.5">Kategorie</th>
+                      <th className="p-3.5">Původní stav</th>
+                      <th className="p-3.5 text-center min-w-[280px]">Nový stav (Úprava)</th>
+                      <th className="p-3.5 text-center">Rozdíl</th>
+                      <th className="p-3.5 text-right">Výsledek</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-tequila-border/40 text-xs">
+                    {filteredBulkItems.map((item) => {
+                      const draftVal = getDraftStock(item.id, item.stock);
+                      const delta = draftVal - item.stock;
+                      const isModified = draftVal !== item.stock;
+                      const isOut = draftVal === 0;
+                      const isLow = draftVal <= item.minStock && draftVal > 0;
+
+                      return (
+                        <tr
+                          key={item.id}
+                          className={`hover:bg-zinc-950/30 transition-colors ${
+                            isModified
+                              ? "bg-amber-950/10"
+                              : isOut
+                              ? "bg-rose-950/5"
+                              : isLow
+                              ? "bg-amber-950/5"
+                              : ""
+                          }`}
+                        >
+                          {/* Item info */}
+                          <td className="p-3.5 flex items-center gap-3">
+                            <div className={`p-2 rounded border ${
+                              isOut 
+                                ? "bg-zinc-950 border-zinc-900 text-zinc-700" 
+                                : "bg-zinc-950 border-tequila-border text-tequila-yellow"
+                            }`}>
+                              <LucideIcon name={item.iconName} className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <span className="font-bold text-xs text-gray-100 block uppercase">{item.name}</span>
+                              <span className="text-[8px] text-zinc-600 font-mono">UID: {item.id}</span>
+                            </div>
+                          </td>
+
+                          {/* Category */}
+                          <td className="p-3.5">
+                            <span className="text-[9px] uppercase font-bold tracking-wider text-zinc-500">
+                              {item.category === "alcohol" && "🥃 Alkohol"}
+                              {item.category === "soft" && "🥤 Nealko"}
+                              {item.category === "garnish" && "🍋 Garnish"}
+                              {item.category === "drink" && "🍹 Drink"}
+                              {item.category === "shot" && "🥃 Shot"}
+                              {item.category === "beer" && "🍺 Pivo"}
+                              {item.category === "food" && "🍔 Jídlo"}
+                              {item.category === "hookah" && "💨 Dýmka"}
+                              {item.category === "tobacco" && "🚬 Tabák"}
+                              {item.category === "other" && "📦 Ostatní"}
+                            </span>
+                          </td>
+
+                          {/* Original Stock */}
+                          <td className="p-3.5 font-bold">
+                            <span className="text-zinc-400">{item.stock < 1 ? item.stock.toFixed(2) : Math.floor(item.stock)} ks</span>
+                            <span className="text-[9px] text-zinc-600 block font-normal">min: {item.minStock} ks</span>
+                          </td>
+
+                          {/* Quick Adjust & Input Controls */}
+                          <td className="p-3.5">
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                onClick={() => handleBulkAdjust(item.id, -10, item.stock)}
+                                className="px-1.5 py-1 bg-zinc-950 hover:bg-zinc-900 border border-zinc-800 hover:border-zinc-600 text-zinc-400 hover:text-white rounded text-[10px] font-bold transition-all cursor-pointer"
+                                title="-10 ks"
+                              >
+                                -10
+                              </button>
+                              <button
+                                onClick={() => handleBulkAdjust(item.id, -5, item.stock)}
+                                className="px-1.5 py-1 bg-zinc-950 hover:bg-zinc-900 border border-zinc-800 hover:border-zinc-600 text-zinc-400 hover:text-white rounded text-[10px] font-bold transition-all cursor-pointer"
+                                title="-5 ks"
+                              >
+                                -5
+                              </button>
+                              <button
+                                onClick={() => handleBulkAdjust(item.id, -1, item.stock)}
+                                className="w-6 h-6 bg-zinc-950 hover:bg-zinc-900 border border-zinc-800 hover:border-zinc-600 text-zinc-400 hover:text-white rounded text-xs font-bold transition-all flex items-center justify-center cursor-pointer"
+                                title="-1 ks"
+                              >
+                                -
+                              </button>
+
+                              <input
+                                type="number"
+                                min="0"
+                                value={draftVal}
+                                onChange={(e) => handleBulkChange(item.id, Math.max(0, Number(e.target.value)))}
+                                className={`w-18 px-2 py-1 bg-zinc-950 border rounded text-xs font-mono font-bold text-center focus:outline-none transition-colors ${
+                                  isModified
+                                    ? "border-tequila-orange text-tequila-yellow bg-amber-950/20"
+                                    : "border-zinc-800 text-white focus:border-tequila-orange"
+                                }`}
+                              />
+
+                              <button
+                                onClick={() => handleBulkAdjust(item.id, 1, item.stock)}
+                                className="w-6 h-6 bg-zinc-950 hover:bg-zinc-900 border border-zinc-800 hover:border-zinc-600 text-zinc-400 hover:text-white rounded text-xs font-bold transition-all flex items-center justify-center cursor-pointer"
+                                title="+1 ks"
+                              >
+                                +
+                              </button>
+                              <button
+                                onClick={() => handleBulkAdjust(item.id, 5, item.stock)}
+                                className="px-1.5 py-1 bg-zinc-950 hover:bg-zinc-900 border border-zinc-800 hover:border-zinc-600 text-zinc-400 hover:text-white rounded text-[10px] font-bold transition-all cursor-pointer"
+                                title="+5 ks"
+                              >
+                                +5
+                              </button>
+                              <button
+                                onClick={() => handleBulkAdjust(item.id, 10, item.stock)}
+                                className="px-1.5 py-1 bg-zinc-950 hover:bg-zinc-900 border border-zinc-800 hover:border-zinc-600 text-zinc-400 hover:text-white rounded text-[10px] font-bold transition-all cursor-pointer"
+                                title="+10 ks"
+                              >
+                                +10
+                              </button>
+
+                              <button
+                                onClick={() => handleBulkChange(item.id, item.minStock)}
+                                className="px-2 py-1 bg-zinc-950 hover:bg-zinc-900 border border-zinc-800 hover:border-amber-500/50 text-amber-400 rounded text-[9px] font-bold uppercase transition-all ml-1 cursor-pointer"
+                                title={`Nastavit přesně na minimální stav (${item.minStock} ks)`}
+                              >
+                                Min ({item.minStock})
+                              </button>
+                            </div>
+                          </td>
+
+                          {/* Delta */}
+                          <td className="p-3.5 text-center">
+                            {delta > 0 ? (
+                              <span className="px-2 py-0.5 rounded bg-emerald-950/40 border border-emerald-500/20 text-emerald-400 font-bold text-[11px]">
+                                +{delta} ks
+                              </span>
+                            ) : delta < 0 ? (
+                              <span className="px-2 py-0.5 rounded bg-rose-950/40 border border-rose-500/20 text-rose-400 font-bold text-[11px]">
+                                {delta} ks
+                              </span>
+                            ) : (
+                              <span className="text-zinc-600 text-[11px]">Beze změny</span>
+                            )}
+                          </td>
+
+                          {/* Result status */}
+                          <td className="p-3.5 text-right">
+                            {isOut ? (
+                              <span className="px-2 py-0.5 rounded bg-rose-950/40 text-rose-400 border border-rose-500/20 text-[9px] font-bold uppercase">
+                                Vyprodáno
+                              </span>
+                            ) : isLow ? (
+                              <span className="px-2 py-0.5 rounded bg-amber-950/40 text-amber-400 border border-amber-500/20 text-[9px] font-bold uppercase">
+                                Nízký stav
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded bg-emerald-950/40 text-emerald-400 border border-emerald-500/20 text-[9px] font-bold uppercase">
+                                V pořádku
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Bottom Save & Summary Bar */}
+            <div className="bg-tequila-card border border-tequila-border p-4 rounded-lg flex flex-col sm:flex-row items-center justify-between gap-4 sticky bottom-4 shadow-2xl backdrop-blur-md">
+              <div className="flex items-center gap-3 font-mono text-xs">
+                <span className="text-zinc-400">
+                  Připraveno k uložení: <strong className="text-white">{changedItemsList.length}</strong> položek
+                </span>
+                {changedItemsList.length > 0 && (
+                  <span className={`font-bold ${totalStockDelta >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                    Celkový posun zásob: {totalStockDelta >= 0 ? `+${totalStockDelta}` : totalStockDelta} ks
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 font-mono w-full sm:w-auto">
+                <button
+                  onClick={() => setSubTab("stock")}
+                  className="flex-1 sm:flex-none px-4 py-2 bg-zinc-950 border border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-white rounded text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
+                >
+                  Zrušit & Zpět
+                </button>
+                <button
+                  onClick={handleSaveBulk}
+                  disabled={changedItemsList.length === 0}
+                  className={`flex-1 sm:flex-none px-6 py-2 rounded text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg ${
+                    changedItemsList.length > 0
+                      ? "bg-emerald-600 hover:bg-emerald-500 text-black font-black"
+                      : "bg-zinc-900 border border-zinc-800 text-zinc-600 cursor-not-allowed"
+                  }`}
+                >
+                  <LucideIcon name="Check" className="w-4 h-4" />
+                  Uložit inventuru
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* SUB TAB 2: BUY/ORDER INGREDIENTS */}
       {subTab === "buy" && (
