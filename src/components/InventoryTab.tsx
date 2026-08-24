@@ -45,6 +45,8 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
   // Buy tab cart state
   const [buyCart, setBuyCart] = useState<{ [itemId: string]: number }>({});
   const [payFromRegister, setPayFromRegister] = useState(true);
+  const [searchBuy, setSearchBuy] = useState("");
+  const [filterBuyCategory, setFilterBuyCategory] = useState<"all" | ItemCategory>("all");
 
   // Add Item Form State
   const [newItemName, setNewItemName] = useState("");
@@ -176,7 +178,12 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
 
   // 2. SUPPLY SHOP LOGIC
   // Raw items or items that can be purchased (purchasePrice > 0)
-  const buyableItems = items.filter((item) => item.purchasePrice > 0);
+  const buyableItems = items.filter((item) => {
+    const isBuyable = item.purchasePrice > 0;
+    const matchesSearch = item.name.toLowerCase().includes(searchBuy.toLowerCase());
+    const matchesCategory = filterBuyCategory === "all" || item.category === filterBuyCategory;
+    return isBuyable && matchesSearch && matchesCategory;
+  });
 
   const handleUpdateBuyQty = (itemId: string, qty: number) => {
     const newQty = Math.max(0, qty);
@@ -377,16 +384,16 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
             <div className="flex gap-1 overflow-x-auto">
               {[
                 { id: "all", label: "Vše" },
-                { id: "alcohol", label: "Alkohol" },
-                { id: "soft", label: "Nealko" },
-                { id: "garnish", label: "Ozdoby" },
-                { id: "drink", label: "Míchané" },
-                { id: "shot", label: "Shoty" },
-                { id: "beer", label: "Piva" },
-                { id: "food", label: "Jídlo" },
-                { id: "hookah", label: "Dýmky" },
-                { id: "tobacco", label: "Tabák" },
-                { id: "other", label: "Ostatní" },
+                { id: "alcohol", label: "🥃 Alkohol" },
+                { id: "soft", label: "🥤 Nealko" },
+                { id: "garnish", label: "🍋 Ozdoby" },
+                { id: "drink", label: "🍹 Míchané" },
+                { id: "shot", label: "🥃 Shoty" },
+                { id: "beer", label: "🍺 Piva" },
+                { id: "food", label: "🍔 Jídlo" },
+                { id: "hookah", label: "💨 Dýmky" },
+                { id: "tobacco", label: "🚬 Tabák" },
+                { id: "other", label: "📦 Ostatní" },
               ].map((cat) => (
                 <button
                   key={cat.id}
@@ -439,56 +446,108 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
                         >
                           {/* Item info */}
                           <td className="p-4 flex items-center gap-3">
-                            <div className={`p-2 rounded border ${
-                              isOut 
-                                ? "bg-zinc-950 border-zinc-900 text-zinc-700" 
-                                : "bg-zinc-950 border-tequila-border text-tequila-yellow"
-                            }`}>
-                              <LucideIcon name={item.iconName} className="w-4 h-4" />
-                            </div>
                             {isEditingThisItem ? (
-                              <div className="flex-1 min-w-[120px]">
-                                <input
-                                  type="text"
-                                  value={editingItem.name}
-                                  onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })}
-                                  className="w-full bg-zinc-950 border border-tequila-orange px-2 py-1 rounded text-xs text-white focus:outline-none"
-                                />
-                                <span className="text-[8px] text-zinc-600 font-mono block mt-0.5">UID: {item.id}</span>
+                              <div className="flex items-center gap-2">
+                                <select
+                                  value={editingItem.iconName}
+                                  onChange={(e) => setEditingItem({ ...editingItem, iconName: e.target.value })}
+                                  className="p-1.5 rounded bg-zinc-950 border border-tequila-orange text-tequila-yellow text-xs focus:outline-none cursor-pointer"
+                                  title="Změnit ikonu položky"
+                                >
+                                  <option value="Wind">💨 Dýmka</option>
+                                  <option value="Cigarette">🚬 Tabák</option>
+                                  <option value="GlassWater">🥃 Panák</option>
+                                  <option value="Wine">🍷 Víno</option>
+                                  <option value="Beer">🍺 Pivo</option>
+                                  <option value="CupSoda">🥤 Nealko</option>
+                                  <option value="Flame">🔥 Uhlíky/Ostré</option>
+                                  <option value="Citrus">🍋 Citrus/Příchuť</option>
+                                  <option value="ChefHat">🍔 Jídlo</option>
+                                  <option value="Sparkles">✨ Speciál</option>
+                                  <option value="Package">📦 Balení</option>
+                                </select>
+                                <div className="flex-1 min-w-[130px]">
+                                  <input
+                                    type="text"
+                                    value={editingItem.name}
+                                    onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })}
+                                    className="w-full bg-zinc-950 border border-tequila-orange px-2 py-1 rounded text-xs text-white focus:outline-none font-bold"
+                                  />
+                                  <span className="text-[8px] text-zinc-600 font-mono block mt-0.5">UID: {item.id}</span>
+                                </div>
                               </div>
                             ) : (
-                              <div>
-                                <span className="font-bold text-xs text-gray-100 block uppercase">{item.name}</span>
-                                <span className="text-[8px] text-zinc-600 font-mono">UID: {item.id}</span>
-                              </div>
+                              <>
+                                <div className={`p-2 rounded border ${
+                                  isOut 
+                                    ? "bg-zinc-950 border-zinc-900 text-zinc-700" 
+                                    : "bg-zinc-950 border-tequila-border text-tequila-yellow"
+                                }`}>
+                                  <LucideIcon name={item.iconName} className="w-4 h-4" />
+                                </div>
+                                <div>
+                                  <span className="font-bold text-xs text-gray-100 block uppercase">{item.name}</span>
+                                  <span className="text-[8px] text-zinc-600 font-mono">UID: {item.id}</span>
+                                </div>
+                              </>
                             )}
                           </td>
 
                           {/* Category */}
                           <td className="p-4">
-                            <span className="text-[9px] uppercase font-bold tracking-wider text-zinc-500">
-                              {item.category === "alcohol" && "🥃 Alkohol"}
-                              {item.category === "soft" && "🥤 Nealko"}
-                              {item.category === "garnish" && "🍋 Garnish"}
-                              {item.category === "drink" && "🍹 Drink"}
-                              {item.category === "shot" && "🥃 Shot"}
-                              {item.category === "beer" && "🍺 Pivo"}
-                              {item.category === "food" && "🍔 Jídlo"}
-                              {item.category === "hookah" && "💨 Dýmka"}
-                              {item.category === "tobacco" && "🚬 Tabák"}
-                              {item.category === "other" && "📦 Ostatní"}
-                            </span>
+                            {isEditingThisItem ? (
+                              <select
+                                value={editingItem.category}
+                                onChange={(e) => setEditingItem({ ...editingItem, category: e.target.value as ItemCategory })}
+                                className="bg-zinc-950 border border-tequila-orange px-2 py-1.5 rounded text-[10px] text-white focus:outline-none font-mono cursor-pointer"
+                              >
+                                <option value="hookah">💨 Dýmky</option>
+                                <option value="tobacco">🚬 Tabák</option>
+                                <option value="alcohol">🥃 Alkohol</option>
+                                <option value="soft">🥤 Nealko</option>
+                                <option value="garnish">🍋 Garnish</option>
+                                <option value="drink">🍹 Míchaný</option>
+                                <option value="shot">🥃 Shot</option>
+                                <option value="beer">🍺 Pivo</option>
+                                <option value="food">🍔 Jídlo</option>
+                                <option value="other">📦 Ostatní</option>
+                              </select>
+                            ) : (
+                              <span className="text-[9px] uppercase font-bold tracking-wider text-zinc-500">
+                                {item.category === "alcohol" && "🥃 Alkohol"}
+                                {item.category === "soft" && "🥤 Nealko"}
+                                {item.category === "garnish" && "🍋 Garnish"}
+                                {item.category === "drink" && "🍹 Drink"}
+                                {item.category === "shot" && "🥃 Shot"}
+                                {item.category === "beer" && "🍺 Pivo"}
+                                {item.category === "food" && "🍔 Jídlo"}
+                                {item.category === "hookah" && "💨 Dýmka"}
+                                {item.category === "tobacco" && "🚬 Tabák"}
+                                {item.category === "other" && "📦 Ostatní"}
+                              </span>
+                            )}
                           </td>
 
                           {/* Type */}
                           <td className="p-4">
-                            <span className={`text-[8px] font-bold uppercase px-2 py-0.5 rounded ${
-                              item.type === "raw" 
-                                ? "bg-blue-950/35 text-blue-400 border border-blue-500/10" 
-                                : "bg-purple-950/35 text-purple-400 border border-purple-500/10"
-                            }`}>
-                              {item.type === "raw" ? "Surovina" : "Míchaný"}
-                            </span>
+                            {isEditingThisItem ? (
+                              <select
+                                value={editingItem.type}
+                                onChange={(e) => setEditingItem({ ...editingItem, type: e.target.value as "raw" | "crafted" })}
+                                className="bg-zinc-950 border border-tequila-orange px-2 py-1.5 rounded text-[10px] text-white focus:outline-none font-mono cursor-pointer"
+                              >
+                                <option value="raw">Surovina</option>
+                                <option value="crafted">Míchaný / Prodejní</option>
+                              </select>
+                            ) : (
+                              <span className={`text-[8px] font-bold uppercase px-2 py-0.5 rounded ${
+                                item.type === "raw" 
+                                  ? "bg-blue-950/35 text-blue-400 border border-blue-500/10" 
+                                  : "bg-purple-950/35 text-purple-400 border border-purple-500/10"
+                              }`}>
+                                {item.type === "raw" ? "Surovina" : "Míchaný"}
+                              </span>
+                            )}
                           </td>
 
                           {/* Stock status with capacity indicator */}
@@ -1088,9 +1147,45 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Order Catalog */}
           <div className="lg:col-span-2 space-y-4 font-mono">
-            <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-wider">
-              Dostupné suroviny od dodavatele
-            </h3>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-wider">
+                Dostupné suroviny od dodavatele
+              </h3>
+              <input
+                type="text"
+                placeholder="Hledat suroviny..."
+                value={searchBuy}
+                onChange={(e) => setSearchBuy(e.target.value)}
+                className="bg-zinc-950 border border-tequila-border px-3 py-1.5 rounded-md text-xs font-mono focus:outline-none focus:border-tequila-orange text-white placeholder-zinc-700 w-full sm:w-56"
+              />
+            </div>
+
+            {/* Category filter bar for Buy tab */}
+            <div className="flex gap-1 overflow-x-auto pb-1">
+              {[
+                { id: "all", label: "Vše" },
+                { id: "hookah", label: "💨 Dýmky" },
+                { id: "tobacco", label: "🚬 Tabák" },
+                { id: "alcohol", label: "🥃 Alkohol" },
+                { id: "soft", label: "🥤 Nealko" },
+                { id: "garnish", label: "🍋 Ozdoby" },
+                { id: "beer", label: "🍺 Pivo" },
+                { id: "food", label: "🍔 Jídlo" },
+                { id: "other", label: "📦 Ostatní" },
+              ].map((cat) => (
+                <button
+                  key={cat.id}
+                  onClick={() => setFilterBuyCategory(cat.id as any)}
+                  className={`px-2.5 py-1 rounded text-[10px] font-mono font-bold uppercase tracking-wider whitespace-nowrap transition-all cursor-pointer ${
+                    filterBuyCategory === cat.id
+                      ? "bg-tequila-orange text-black font-black"
+                      : "bg-zinc-950 border border-zinc-900 text-zinc-500 hover:text-white"
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {buyableItems.map((item) => {
@@ -1277,30 +1372,42 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
                 <select
                   value={newItemType}
                   onChange={(e) => setNewItemType(e.target.value as any)}
-                  className="w-full bg-zinc-950 border border-tequila-border px-3.5 py-2 rounded-md text-xs text-gray-300 focus:outline-none focus:border-tequila-orange"
+                  className="w-full bg-zinc-950 border border-tequila-border px-3.5 py-2 rounded-md text-xs text-gray-300 focus:outline-none focus:border-tequila-orange cursor-pointer"
                 >
-                  <option value="raw" className="bg-zinc-950">Surovina (Ingredience)</option>
+                  <option value="raw" className="bg-zinc-950">Surovina (Ingredience / Zboží k prodeji)</option>
                   <option value="crafted" className="bg-zinc-950">Prodejní položka / Jídlo / Drink</option>
                 </select>
               </div>
 
-               {/* Category */}
+              {/* Category */}
               <div>
                 <label className="block text-[9px] text-zinc-500 font-bold uppercase tracking-wider mb-1">Kategorie</label>
                 <select
                   value={newItemCategory}
-                  onChange={(e) => setNewItemCategory(e.target.value as any)}
-                  className="w-full bg-zinc-950 border border-tequila-border px-3.5 py-2 rounded-md text-xs text-gray-300 focus:outline-none focus:border-tequila-orange"
+                  onChange={(e) => {
+                    const newCat = e.target.value as ItemCategory;
+                    setNewItemCategory(newCat);
+                    if (newCat === "hookah") setNewItemIcon("Wind");
+                    else if (newCat === "tobacco") setNewItemIcon("Cigarette");
+                    else if (newCat === "alcohol" || newCat === "shot") setNewItemIcon("GlassWater");
+                    else if (newCat === "drink") setNewItemIcon("Wine");
+                    else if (newCat === "beer") setNewItemIcon("Beer");
+                    else if (newCat === "soft") setNewItemIcon("CupSoda");
+                    else if (newCat === "garnish") setNewItemIcon("Citrus");
+                    else if (newCat === "food") setNewItemIcon("ChefHat");
+                    else if (newCat === "other") setNewItemIcon("Package");
+                  }}
+                  className="w-full bg-zinc-950 border border-tequila-border px-3.5 py-2 rounded-md text-xs text-gray-300 focus:outline-none focus:border-tequila-orange cursor-pointer"
                 >
-                  <option value="alcohol" className="bg-zinc-950">🥃 Alkohol</option>
-                  <option value="soft" className="bg-zinc-950">🥤 Nealko</option>
-                  <option value="garnish" className="bg-zinc-950">🍋 Ozdoba / Citrus</option>
+                  <option value="hookah" className="bg-zinc-950">💨 Dýmky (Vodní dýmky, uhlíky, příchutě)</option>
+                  <option value="tobacco" className="bg-zinc-950">🚬 Tabák (Cigarety, Doutníky...)</option>
+                  <option value="alcohol" className="bg-zinc-950">🥃 Alkohol (Láhve, Tvrdý)</option>
+                  <option value="soft" className="bg-zinc-950">🥤 Nealko (Coly, Džusy, RedBully)</option>
+                  <option value="garnish" className="bg-zinc-950">🍋 Ozdoba / Citrus / Sirupy</option>
                   <option value="drink" className="bg-zinc-950">🍹 Míchaný drink</option>
                   <option value="shot" className="bg-zinc-950">🥃 Shot (Panák)</option>
                   <option value="beer" className="bg-zinc-950">🍺 Pivo</option>
-                  <option value="food" className="bg-zinc-950">🍔 Jídlo</option>
-                  <option value="hookah" className="bg-zinc-950">💨 Dýmka</option>
-                  <option value="tobacco" className="bg-zinc-950">🚬 Tabák (Cigarety, Doutníky...)</option>
+                  <option value="food" className="bg-zinc-950">🍔 Jídlo / Pochutiny</option>
                   <option value="other" className="bg-zinc-950">📦 Ostatní</option>
                 </select>
               </div>
@@ -1362,15 +1469,18 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
               {/* Icon selector */}
               <div className="md:col-span-2">
                 <label className="block text-[9px] text-zinc-500 font-bold uppercase tracking-wider mb-2">Výběr ikony</label>
-                <div className="grid grid-cols-6 gap-2">
+                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-10 gap-2">
                   {[
+                    { id: "Wind", label: "Dýmka" },
+                    { id: "Cigarette", label: "Tabák" },
+                    { id: "GlassWater", label: "Panák" },
                     { id: "Wine", label: "Víno" },
                     { id: "Beer", label: "Pivo" },
                     { id: "CupSoda", label: "Limo" },
-                    { id: "Flame", label: "Ostrý" },
+                    { id: "Flame", label: "Uhlíky" },
                     { id: "Citrus", label: "Citrus" },
                     { id: "ChefHat", label: "Jídlo" },
-                    { id: "Sparkles", label: "Speciál" },
+                    { id: "Package", label: "Balení" },
                   ].map((ic) => (
                     <button
                       type="button"

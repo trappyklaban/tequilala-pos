@@ -1182,10 +1182,16 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
                           onChange={(e) => setNewRecResultItemIcon(e.target.value)}
                           className="w-full bg-tequila-dark border border-tequila-border px-2 py-2 rounded-xl text-[11px] text-gray-300 focus:outline-none focus:border-tequila-orange"
                         >
-                          <option value="Wine">🍷 Sklenice</option>
+                          <option value="Wine">🍷 Sklenice / Koktejl</option>
+                          <option value="Wind">💨 Dýmka / Kouř</option>
+                          <option value="Cigarette">🚬 Cigarety / Tabák</option>
                           <option value="Beer">🍺 Pivo</option>
-                          <option value="GlassWater">🥃 Panák</option>
-                          <option value="CupSoda">🥤 Kelímek</option>
+                          <option value="GlassWater">🥃 Panák / Shot</option>
+                          <option value="CupSoda">🥤 Kelímek / Nealko</option>
+                          <option value="Flame">🔥 Uhlíky / Ostré</option>
+                          <option value="Citrus">🍋 Citrus / Příchuť</option>
+                          <option value="ChefHat">🍔 Jídlo</option>
+                          <option value="Package">📦 Balení / Ostatní</option>
                         </select>
                       </div>
                     </div>
@@ -1350,10 +1356,16 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
                           onChange={(e) => setNewRecResultItemIcon(e.target.value)}
                           className="w-full bg-tequila-dark border border-tequila-border px-2 py-2 rounded-xl text-[11px] text-gray-300 focus:outline-none focus:border-tequila-orange"
                         >
-                          <option value="Wine">🍷 Sklenice</option>
+                          <option value="Wine">🍷 Sklenice / Koktejl</option>
+                          <option value="Wind">💨 Dýmka / Kouř</option>
+                          <option value="Cigarette">🚬 Cigarety / Tabák</option>
                           <option value="Beer">🍺 Pivo</option>
-                          <option value="GlassWater">🥃 Panák</option>
-                          <option value="CupSoda">🥤 Kelímek</option>
+                          <option value="GlassWater">🥃 Panák / Shot</option>
+                          <option value="CupSoda">🥤 Kelímek / Nealko</option>
+                          <option value="Flame">🔥 Uhlíky / Ostré</option>
+                          <option value="Citrus">🍋 Citrus / Příchuť</option>
+                          <option value="ChefHat">🍔 Jídlo</option>
+                          <option value="Package">📦 Balení / Ostatní</option>
                         </select>
                       </div>
                     </div>
