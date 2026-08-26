@@ -112,3 +112,14 @@ export interface BusinessState {
   barTabs?: BarTab[];
   shifts?: ShiftLog[];
 }
+
+export interface AutoBackupEntry {
+  id: string;
+  timestamp: string;
+  reason: string;
+  bartendersCount: number;
+  salesCount: number;
+  shiftsCount: number;
+  itemsCount: number;
+  state: BusinessState;
+}

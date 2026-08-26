@@ -1,5 +1,6 @@
 import { initializeApp, getApps, getApp, setLogLevel } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
+import firebaseConfigFile from "../firebase-applet-config.json";
 
 // Suppress internal Firebase SDK log noise
 try {
@@ -8,18 +9,16 @@ try {
   // Ignore if unsupported in environment
 }
 
-// Public Firebase config keys (safe for frontend code)
-const env = (import.meta as any).env || {};
 const firebaseConfig = {
-  apiKey: env.VITE_FIREBASE_API_KEY || "AIzaSyDy9iECdSYL1wszo0DfJmZwmGfbB2OQM54",
-  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN || "gen-lang-client-0790745047.firebaseapp.com",
-  projectId: env.VITE_FIREBASE_PROJECT_ID || "gen-lang-client-0790745047",
-  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET || "gen-lang-client-0790745047.firebasestorage.app",
-  messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID || "612637964357",
-  appId: env.VITE_FIREBASE_APP_ID || "1:612637964357:web:99d5e428abfeb383bc0b2c"
+  apiKey: firebaseConfigFile.apiKey,
+  authDomain: firebaseConfigFile.authDomain,
+  projectId: firebaseConfigFile.projectId,
+  storageBucket: firebaseConfigFile.storageBucket,
+  messagingSenderId: firebaseConfigFile.messagingSenderId,
+  appId: firebaseConfigFile.appId,
 };
 
-const databaseId = env.VITE_FIREBASE_DATABASE_ID || "ai-studio-tequilalaposmana-4163c539-d59d-4e27-9509-9552ddddc70f";
+const databaseId = firebaseConfigFile.firestoreDatabaseId || "ai-studio-tequilalaposmana-4163c539-d59d-4e27-9509-9552ddddc70f";
 
 // Initialize Firebase App
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();

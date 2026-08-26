@@ -9,6 +9,7 @@ import {
   RecipeIngredient,
   ItemCategory,
   ShiftLog,
+  AutoBackupEntry,
 } from "../types";
 import { LucideIcon } from "./LucideIcon";
 
@@ -29,6 +30,7 @@ interface ManagementTabProps {
   registerBalance: number;
   items: InventoryItem[];
   recipes: Recipe[];
+  backups?: AutoBackupEntry[];
   onAddBartender: (name: string, rate: number, pin?: string, role?: "manager" | "barman") => void;
   onUpdateBartenderStatus: (id: string, active: boolean) => void;
   onUpdateBartenderCommission: (id: string, rate: number) => void;
@@ -38,6 +40,9 @@ interface ManagementTabProps {
   onPayoutBartender: (id: string) => { success: boolean; error?: string };
   onImportBackup: (jsonData: string) => { success: boolean; error?: string };
   onExportBackup: () => void;
+  onRestoreBackup?: (backup: AutoBackupEntry) => void;
+  onCreateManualBackup?: (label: string) => void;
+  onDeleteBackup?: (backupId: string) => void;
   onResetDatabase: () => void;
   onAddRecipe: (recipe: Omit<Recipe, "id">, newItemToCreate?: Omit<InventoryItem, "id">) => void;
   onDeleteRecipe: (id: string) => void;
@@ -59,6 +64,7 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
   registerBalance,
   items,
   recipes,
+  backups = [],
   onAddBartender,
   onUpdateBartenderStatus,
   onUpdateBartenderCommission,
@@ -68,6 +74,9 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
   onPayoutBartender,
   onImportBackup,
   onExportBackup,
+  onRestoreBackup,
+  onCreateManualBackup,
+  onDeleteBackup,
   onResetDatabase,
   onAddRecipe,
   onDeleteRecipe,
@@ -78,6 +87,9 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
   const [activeSubTab, setActiveSubTab] = useState<"employees" | "recipes" | "stats" | "history" | "backup">("employees");
   const [expandedShiftIds, setExpandedShiftIds] = useState<Record<string, boolean>>({});
   const [confirmDeleteShiftId, setConfirmDeleteShiftId] = useState<string | null>(null);
+  const [restoreConfirmBackup, setRestoreConfirmBackup] = useState<AutoBackupEntry | null>(null);
+  const [manualBackupName, setManualBackupName] = useState("");
+  const [showCreateBackupInput, setShowCreateBackupInput] = useState(false);
 
   // Shift Edit State
   const [editingShiftId, setEditingShiftId] = useState<string | null>(null);
@@ -2271,98 +2283,327 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
 
       {/* SUB TAB 4: BACKUPS, IMPORTS & EXPORTS */}
       {activeSubTab === "backup" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Export card */}
-          <div className="bg-tequila-card border border-tequila-border p-5 rounded-2xl flex flex-col justify-between">
-            <div className="space-y-3">
-              <h3 className="text-base font-display font-bold text-tequila-orange uppercase tracking-tight">
-                Exportovat Zálohu Podniku
-              </h3>
-              <p className="text-xs text-gray-400">
-                Stáhněte si kompletní data vašeho baru Tequi-la-la do formátu JSON. Tento soubor si můžete uschovat jako zálohu nebo jej sdílet s ostatními spolumajiteli baru.
-              </p>
-              <div className="bg-tequila-dark/40 border border-tequila-border/60 p-4 rounded-xl text-[11px] font-mono text-gray-500 leading-relaxed">
-                Záloha obsahuje kompletní seznam položek na skladě, míchací recepty, barové zaměstnance, provizní stavy a kompletní historii tržeb a výdajů.
+        <div className="space-y-6">
+          {/* RESTORE CONFIRMATION MODAL */}
+          {restoreConfirmBackup && (
+            <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-zinc-950 border border-tequila-orange/50 p-6 rounded-2xl w-full max-w-md shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-200">
+                <div className="flex items-center gap-3 text-tequila-orange">
+                  <div className="p-2.5 bg-tequila-orange/10 rounded-xl border border-tequila-orange/30">
+                    <LucideIcon name="RotateCcw" className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-display font-bold text-white uppercase text-base tracking-wider">
+                      Obnovit stav podniku?
+                    </h3>
+                    <p className="text-xs text-zinc-400">
+                      Vrátit veškerá data do stavu tohoto bodu obnovy
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-xl space-y-2 text-xs font-mono">
+                  <div className="flex justify-between text-zinc-400">
+                    <span>Čas bodu:</span>
+                    <span className="text-white font-bold">
+                      {new Date(restoreConfirmBackup.timestamp).toLocaleString("cs-CZ")}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-zinc-400">
+                    <span>Důvod zálohy:</span>
+                    <span className="text-tequila-yellow font-bold">{restoreConfirmBackup.reason}</span>
+                  </div>
+                  <div className="pt-2 border-t border-zinc-800 grid grid-cols-2 gap-2 text-[11px]">
+                    <div className="bg-zinc-950 p-2 rounded border border-zinc-850">
+                      <span className="text-zinc-500 block text-[9px] uppercase">Zaměstnanci</span>
+                      <span className="text-emerald-400 font-bold">{restoreConfirmBackup.bartendersCount || 0} uživatelů</span>
+                    </div>
+                    <div className="bg-zinc-950 p-2 rounded border border-zinc-850">
+                      <span className="text-zinc-500 block text-[9px] uppercase">Záznamy prodejů</span>
+                      <span className="text-tequila-orange font-bold">{restoreConfirmBackup.salesCount || 0} účtenek</span>
+                    </div>
+                    <div className="bg-zinc-950 p-2 rounded border border-zinc-850">
+                      <span className="text-zinc-500 block text-[9px] uppercase">Směny</span>
+                      <span className="text-blue-400 font-bold">{restoreConfirmBackup.shiftsCount || 0} směn</span>
+                    </div>
+                    <div className="bg-zinc-950 p-2 rounded border border-zinc-850">
+                      <span className="text-zinc-500 block text-[9px] uppercase">Položky skladu</span>
+                      <span className="text-zinc-300 font-bold">{restoreConfirmBackup.itemsCount || 0} položek</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-amber-950/30 border border-amber-500/20 rounded-xl text-amber-300 text-xs">
+                  ⚠️ Před obnovou bude aktuální stav automaticky zálohován, takže o nic nepřijdete.
+                </div>
+
+                <div className="flex items-center gap-2 pt-2">
+                  <button
+                    onClick={() => {
+                      if (onRestoreBackup) {
+                        onRestoreBackup(restoreConfirmBackup);
+                        triggerAlert("success", `Data byla úspěšně obnovena z bodu: ${restoreConfirmBackup.reason}`);
+                      }
+                      setRestoreConfirmBackup(null);
+                    }}
+                    className="flex-1 py-3 bg-tequila-orange hover:bg-tequila-orange/90 text-white font-display font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-lg shadow-tequila-orange/20 flex items-center justify-center gap-2"
+                  >
+                    <LucideIcon name="Check" className="w-4 h-4" />
+                    Ano, obnovit tento stav
+                  </button>
+                  <button
+                    onClick={() => setRestoreConfirmBackup(null)}
+                    className="py-3 px-4 bg-zinc-900 hover:bg-zinc-850 text-zinc-400 hover:text-white font-display font-bold text-xs uppercase tracking-wider rounded-xl border border-zinc-800 transition-all cursor-pointer"
+                  >
+                    Zrušit
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* AUTO-BACKUPS HISTORY PANEL */}
+          <div className="bg-tequila-card border border-tequila-border p-5 rounded-2xl space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="p-1.5 bg-tequila-orange/10 border border-tequila-orange/30 text-tequila-orange rounded-lg">
+                    <LucideIcon name="History" className="w-4 h-4" />
+                  </span>
+                  <h3 className="text-base font-display font-bold text-white uppercase tracking-tight">
+                    Automatické záchranné zálohy & Body obnovy
+                  </h3>
+                </div>
+                <p className="text-xs text-gray-400 mt-1">
+                  Systém automaticky ukládá časové snímky baru před každou synchronizací, prodejem či změnou. Kliknutím na "Obnovit" můžete vrátit ztracené záznamy nebo uživatele.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                {showCreateBackupInput ? (
+                  <div className="flex items-center gap-2 bg-zinc-950 p-1.5 rounded-xl border border-tequila-border">
+                    <input
+                      type="text"
+                      placeholder="Název bodu obnovy..."
+                      value={manualBackupName}
+                      onChange={(e) => setManualBackupName(e.target.value)}
+                      className="bg-transparent text-xs text-white px-2 py-1 focus:outline-none font-mono"
+                    />
+                    <button
+                      onClick={() => {
+                        if (onCreateManualBackup) {
+                          onCreateManualBackup(manualBackupName || "Ruční záloha");
+                          triggerAlert("success", "Ruční bod obnovy byl úspěšně vytvořen!");
+                          setManualBackupName("");
+                          setShowCreateBackupInput(false);
+                        }
+                      }}
+                      className="py-1 px-2.5 bg-tequila-orange text-white text-xs font-bold rounded-lg cursor-pointer hover:bg-tequila-orange/90"
+                    >
+                      Uložit
+                    </button>
+                    <button
+                      onClick={() => setShowCreateBackupInput(false)}
+                      className="text-zinc-500 hover:text-white p-1 text-xs"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowCreateBackupInput(true)}
+                    className="py-2 px-3.5 bg-zinc-900 hover:bg-zinc-850 border border-tequila-border hover:border-tequila-orange/40 text-tequila-orange font-display font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                  >
+                    <LucideIcon name="Plus" className="w-3.5 h-3.5" />
+                    Vytvořit bod obnovy nyní
+                  </button>
+                )}
               </div>
             </div>
 
-            <button
-              onClick={onExportBackup}
-              className="mt-6 w-full py-3 bg-tequila-orange hover:bg-tequila-orange/90 text-white font-display font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 hover:scale-[1.01] active:scale-[0.99]"
-            >
-              <LucideIcon name="Download" className="w-4 h-4" />
-              Stáhnout zálohu podniku
-            </button>
-          </div>
-
-          {/* Import card */}
-          <div className="bg-tequila-card border border-tequila-border p-5 rounded-2xl space-y-4">
-            <h3 className="text-base font-display font-bold text-tequila-yellow uppercase tracking-tight">
-              Načíst Zálohu Podniku (Import)
-            </h3>
-            <p className="text-xs text-gray-400">
-              Chcete-li obnovit stav vašeho baru ze dřívějška, vložte sem zkopírovaný JSON kód zálohy a klikněte na "Obnovit".
-            </p>
-
-            <textarea
-              placeholder='Vložte JSON zálohu sem... (např. {"items": [], "sales": [], ...})'
-              value={importJson}
-              onChange={(e) => setImportJson(e.target.value)}
-              className="w-full h-32 bg-tequila-dark border border-tequila-border p-3.5 rounded-xl text-xs font-mono text-gray-300 focus:outline-none focus:border-tequila-yellow"
-            ></textarea>
-
-            <button
-              onClick={handleImport}
-              className="w-full py-3 bg-tequila-yellow hover:bg-tequila-yellow/90 text-tequila-dark font-display font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 hover:scale-[1.01] active:scale-[0.99]"
-            >
-              <LucideIcon name="Upload" className="w-4 h-4" />
-              Obnovit data ze zálohy
-            </button>
-          </div>
-
-          {/* Emergency Factory Reset */}
-          <div className="bg-rose-950/15 border border-rose-500/20 p-5 rounded-2xl md:col-span-2 flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="space-y-1">
-              <h4 className="font-display font-bold text-rose-400 uppercase tracking-wide text-sm">
-                🚨 Tovární reset (Vymazat data)
-              </h4>
-              <p className="text-xs text-rose-300/80">
-                Tato akce kompletně vymaže veškeré tržby, nákupy, prodeje, přidané barovky a obnoví výchozí demo nastavení.
-              </p>
-            </div>
-
-            {resetDbConfirm ? (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    onResetDatabase();
-                    triggerAlert("success", "Databáze podniku byla obnovena do továrního stavu!");
-                    setResetDbConfirm(false);
-                  }}
-                  className="py-2.5 px-5 bg-rose-600 hover:bg-rose-500 text-white font-display font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer active:scale-95 flex items-center gap-2 border border-rose-400 animate-pulse"
-                >
-                  <LucideIcon name="AlertTriangle" className="w-4 h-4" />
-                  POTVRDIT VYMAZÁNÍ!
-                </button>
-                <button
-                  onClick={() => setResetDbConfirm(false)}
-                  className="py-2.5 px-3 bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white font-display font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer"
-                >
-                  Zrušit
-                </button>
+            {/* Backups List */}
+            {backups.length === 0 ? (
+              <div className="bg-zinc-950/60 border border-dashed border-zinc-800 rounded-xl p-8 text-center space-y-2">
+                <LucideIcon name="HardDrive" className="w-8 h-8 text-zinc-600 mx-auto" />
+                <p className="text-xs text-zinc-400 font-mono">
+                  Zatím nebyl zaznamenán žádný záchranný bod obnovy. Vytvořte jej tlačítkem výše nebo proveďte libovolnou operaci v baru.
+                </p>
               </div>
             ) : (
-              <button
-                onClick={() => {
-                  setResetDbConfirm(true);
-                  setTimeout(() => setResetDbConfirm(false), 5000);
-                }}
-                className="py-2.5 px-5 bg-rose-950/60 hover:bg-rose-900 text-rose-400 hover:text-rose-300 font-display font-bold text-xs uppercase tracking-wider rounded-xl border border-rose-500/30 transition-all cursor-pointer flex items-center gap-2"
-              >
-                <LucideIcon name="RotateCcw" className="w-4 h-4" />
-                Resetovat Podnik
-              </button>
+              <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
+                {backups.map((b) => (
+                  <div
+                    key={b.id}
+                    className="bg-zinc-950/80 border border-zinc-800 hover:border-tequila-orange/30 p-3.5 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all"
+                  >
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono text-xs font-bold text-white">
+                          {new Date(b.timestamp).toLocaleString("cs-CZ")}
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-tequila-orange/10 border border-tequila-orange/20 text-tequila-orange font-bold uppercase tracking-wider">
+                          {b.reason}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-3 text-[11px] text-zinc-400 font-mono flex-wrap">
+                        <span className="flex items-center gap-1">
+                          <LucideIcon name="Users" className="w-3 h-3 text-emerald-400" />
+                          <strong className="text-emerald-400">{b.bartendersCount ?? b.state?.bartenders?.length ?? 0}</strong> uživatelů
+                        </span>
+                        <span>•</span>
+                        <span className="flex items-center gap-1">
+                          <LucideIcon name="Receipt" className="w-3 h-3 text-tequila-yellow" />
+                          <strong className="text-tequila-yellow">{b.salesCount ?? b.state?.sales?.length ?? 0}</strong> prodejů
+                        </span>
+                        <span>•</span>
+                        <span className="flex items-center gap-1">
+                          <LucideIcon name="Clock" className="w-3 h-3 text-blue-400" />
+                          <strong className="text-blue-400">{b.shiftsCount ?? b.state?.shifts?.length ?? 0}</strong> směn
+                        </span>
+                        <span>•</span>
+                        <span className="flex items-center gap-1">
+                          <LucideIcon name="Coins" className="w-3 h-3 text-zinc-400" />
+                          Kasa: ${b.state?.registerBalance?.toFixed(2) || "0.00"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => setRestoreConfirmBackup(b)}
+                        className="py-1.5 px-3 bg-tequila-orange/15 hover:bg-tequila-orange text-tequila-orange hover:text-white border border-tequila-orange/30 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+                        title="Obnovit bar do tohoto stavu"
+                      >
+                        <LucideIcon name="RotateCcw" className="w-3.5 h-3.5" />
+                        Obnovit
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(b.state));
+                          const dlAnchor = document.createElement("a");
+                          dlAnchor.setAttribute("href", dataStr);
+                          dlAnchor.setAttribute("download", `tequilala_backup_${new Date(b.timestamp).toISOString().slice(0, 19).replace(/[:]/g, "-")}.json`);
+                          document.body.appendChild(dlAnchor);
+                          dlAnchor.click();
+                          dlAnchor.remove();
+                        }}
+                        className="p-1.5 bg-zinc-900 hover:bg-zinc-850 text-zinc-400 hover:text-white border border-zinc-800 rounded-lg transition-colors cursor-pointer"
+                        title="Stáhnout JSON soubor této zálohy"
+                      >
+                        <LucideIcon name="Download" className="w-3.5 h-3.5" />
+                      </button>
+
+                      {onDeleteBackup && (
+                        <button
+                          onClick={() => onDeleteBackup(b.id)}
+                          className="p-1.5 bg-zinc-900 hover:bg-rose-950/40 text-zinc-600 hover:text-rose-400 border border-zinc-800 hover:border-rose-900/30 rounded-lg transition-colors cursor-pointer"
+                          title="Odstranit bod obnovy"
+                        >
+                          <LucideIcon name="Trash2" className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Export card */}
+            <div className="bg-tequila-card border border-tequila-border p-5 rounded-2xl flex flex-col justify-between">
+              <div className="space-y-3">
+                <h3 className="text-base font-display font-bold text-tequila-orange uppercase tracking-tight">
+                  Exportovat Aktuální Zálohu (JSON)
+                </h3>
+                <p className="text-xs text-gray-400">
+                  Stáhněte si kompletní data vašeho baru Tequi-la-la do souboru JSON. Tento soubor si můžete uschovat jako trvalou zálohu do PC nebo jej sdílet s ostatními manažery baru.
+                </p>
+                <div className="bg-tequila-dark/40 border border-tequila-border/60 p-4 rounded-xl text-[11px] font-mono text-gray-500 leading-relaxed">
+                  Záloha obsahuje kompletní seznam položek na skladě, míchací recepty, barové zaměstnance, PIN kódy, provize a kompletní historii tržeb a směn.
+                </div>
+              </div>
+
+              <button
+                onClick={onExportBackup}
+                className="mt-6 w-full py-3 bg-tequila-orange hover:bg-tequila-orange/90 text-white font-display font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 hover:scale-[1.01] active:scale-[0.99]"
+              >
+                <LucideIcon name="Download" className="w-4 h-4" />
+                Stáhnout záložní soubor podniku
+              </button>
+            </div>
+
+            {/* Import card */}
+            <div className="bg-tequila-card border border-tequila-border p-5 rounded-2xl space-y-4">
+              <h3 className="text-base font-display font-bold text-tequila-yellow uppercase tracking-tight">
+                Načíst Zálohu Podniku (Import ze souboru/textu)
+              </h3>
+              <p className="text-xs text-gray-400">
+                Chcete-li obnovit stav vašeho baru z dříve exportovaného souboru, vložte sem zkopírovaný JSON text a klikněte na "Obnovit".
+              </p>
+
+              <textarea
+                placeholder='Vložte JSON zálohu sem... (např. {"items": [], "bartenders": [], "sales": [], ...})'
+                value={importJson}
+                onChange={(e) => setImportJson(e.target.value)}
+                className="w-full h-32 bg-tequila-dark border border-tequila-border p-3.5 rounded-xl text-xs font-mono text-gray-300 focus:outline-none focus:border-tequila-yellow"
+              ></textarea>
+
+              <button
+                onClick={handleImport}
+                className="w-full py-3 bg-tequila-yellow hover:bg-tequila-yellow/90 text-tequila-dark font-display font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 hover:scale-[1.01] active:scale-[0.99]"
+              >
+                <LucideIcon name="Upload" className="w-4 h-4" />
+                Obnovit data ze zadaného JSONu
+              </button>
+            </div>
+
+            {/* Emergency Factory Reset */}
+            <div className="bg-rose-950/15 border border-rose-500/20 p-5 rounded-2xl md:col-span-2 flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="space-y-1">
+                <h4 className="font-display font-bold text-rose-400 uppercase tracking-wide text-sm">
+                  🚨 Tovární reset (Vymazat data)
+                </h4>
+                <p className="text-xs text-rose-300/80">
+                  Tato akce resetuje aktuální stav podniku do výchozího demo nastavení. Před resetem se automaticky uloží záchranný bod.
+                </p>
+              </div>
+
+              {resetDbConfirm ? (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      onResetDatabase();
+                      triggerAlert("success", "Databáze podniku byla obnovena do továrního stavu!");
+                      setResetDbConfirm(false);
+                    }}
+                    className="py-2.5 px-5 bg-rose-600 hover:bg-rose-500 text-white font-display font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer active:scale-95 flex items-center gap-2 border border-rose-400 animate-pulse"
+                  >
+                    <LucideIcon name="AlertTriangle" className="w-4 h-4" />
+                    POTVRDIT VYMAZÁNÍ!
+                  </button>
+                  <button
+                    onClick={() => setResetDbConfirm(false)}
+                    className="py-2.5 px-3 bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white font-display font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer"
+                  >
+                    Zrušit
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => {
+                    setResetDbConfirm(true);
+                    setTimeout(() => setResetDbConfirm(false), 5000);
+                  }}
+                  className="py-2.5 px-5 bg-rose-950/60 hover:bg-rose-900 text-rose-400 hover:text-rose-300 font-display font-bold text-xs uppercase tracking-wider rounded-xl border border-rose-500/30 transition-all cursor-pointer flex items-center gap-2"
+                >
+                  <LucideIcon name="RotateCcw" className="w-4 h-4" />
+                  Resetovat Podnik
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}

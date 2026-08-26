@@ -467,6 +467,15 @@ export const INITIAL_RECIPES: Recipe[] = [
 
 export const INITIAL_BARTENDERS: Bartender[] = [
   {
+    id: "bart_felipe",
+    name: "Felipe Garrido De Luca",
+    commissionRate: 0, // Manažer / Bez provize
+    totalCommissionEarned: 0,
+    status: "active",
+    pin: "0410",
+    role: "manager",
+  },
+  {
     id: "bart_marek",
     name: "Marek Kovác",
     commissionRate: 15, // 15% z prodeje

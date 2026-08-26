@@ -13,6 +13,7 @@ import {
   PurchaseItem,
   BarTab,
   ShiftLog,
+  AutoBackupEntry,
 } from "./types";
 import {
   INITIAL_ITEMS,
@@ -29,8 +30,57 @@ import { LucideIcon } from "./components/LucideIcon";
 
 // Local storage persistence key
 const LOCAL_STORAGE_KEY = "tequilala_bar_state";
+const BACKUPS_KEY = "tequilala_auto_backups_list";
 
 let isQuotaExhausted = false;
+
+function ensureMandatoryManagers(list: Bartender[]): { bartenders: Bartender[]; changed: boolean } {
+  let changed = false;
+  let result = Array.isArray(list) ? [...list] : [];
+
+  const hasFelipe = result.some((b) => b.name?.toLowerCase().includes("felipe") || b.id === "bart_felipe");
+  if (!hasFelipe) {
+    result.unshift({
+      id: "bart_felipe",
+      name: "Felipe Garrido De Luca",
+      commissionRate: 0,
+      totalCommissionEarned: 0,
+      status: "active",
+      pin: "0410",
+      role: "manager",
+    });
+    changed = true;
+  } else {
+    result = result.map((b) => {
+      if (b.name?.toLowerCase().includes("felipe") || b.id === "bart_felipe") {
+        if (b.pin !== "0410" || b.role !== "manager" || b.status !== "active") {
+          changed = true;
+          return { ...b, pin: "0410", role: "manager" as const, status: "active" as const };
+        }
+      }
+      return b;
+    });
+  }
+
+  result = result.map((b) => {
+    if (b.id === "bart_majitel" && b.status !== "active") {
+      changed = true;
+      return { ...b, status: "active" as const };
+    }
+    return b;
+  });
+
+  return { bartenders: result, changed };
+}
+
+function getStoredBackups(): AutoBackupEntry[] {
+  try {
+    const raw = localStorage.getItem(BACKUPS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
 
 function isQuotaError(err: any): boolean {
   if (!err) return false;
@@ -56,6 +106,7 @@ export default function App() {
     barTabs: [],
   });
 
+  const [autoBackups, setAutoBackups] = useState<AutoBackupEntry[]>([]);
   const [activeTab, setActiveTab] = useState<"pos" | "craft" | "inventory" | "management" | "shift">("pos");
   const [session, setSession] = useState<{ role: "manager" | "barman"; bartenderId?: string } | null>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -77,34 +128,67 @@ export default function App() {
   const [regAmount, setRegAmount] = useState<number | "">("");
   const [regType, setRegType] = useState<"deposit" | "withdraw">("deposit");
 
+  // Helper to record an automated restore point
+  const recordAutoBackup = (stateToSave: BusinessState, reason: string) => {
+    if (!stateToSave) return;
+    try {
+      const prevList = getStoredBackups();
+      if (prevList.length > 0) {
+        const latest = prevList[0];
+        const timeDiff = Date.now() - new Date(latest.timestamp).getTime();
+        // Prevent duplicate snapshots within 8 seconds with the same reason
+        if (timeDiff < 8000 && latest.reason === reason) {
+          return;
+        }
+      }
+      const entry: AutoBackupEntry = {
+        id: `backup_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        timestamp: new Date().toISOString(),
+        reason,
+        bartendersCount: (stateToSave.bartenders || []).length,
+        salesCount: (stateToSave.sales || []).length,
+        shiftsCount: (stateToSave.shifts || []).length,
+        itemsCount: (stateToSave.items || []).length,
+        state: JSON.parse(JSON.stringify(stateToSave)),
+      };
+      const updated = [entry, ...prevList].slice(0, 30);
+      localStorage.setItem(BACKUPS_KEY, JSON.stringify(updated));
+      setAutoBackups(updated);
+    } catch (e) {
+      console.error("Failed to save backup snapshot", e);
+    }
+  };
+
   // Load from local storage on mount AND subscribe to real-time Firestore updates
   useEffect(() => {
+    // 0. Load existing backup restore points
+    const storedBackups = getStoredBackups();
+    setAutoBackups(storedBackups);
+
     // 1. Instantly load local cache for zero-latency initial render
+    let initialLocalState: BusinessState | null = null;
     const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed.items && parsed.recipes && parsed.bartenders) {
-          const cleanedBartenders = (parsed.bartenders || []).map((b: any) => {
-            if (b.id === "bart_majitel") {
-              return { ...b, status: "active" as const };
-            }
-            return b;
-          });
-          setState({
+        if (parsed.items && parsed.recipes) {
+          const { bartenders: cleanedBartenders } = ensureMandatoryManagers(parsed.bartenders || []);
+          initialLocalState = {
             ...parsed,
             items: parsed.items || [],
             bartenders: cleanedBartenders,
             recipes: parsed.recipes,
             barTabs: parsed.barTabs || [],
-          });
+          };
+          setState(initialLocalState);
+          recordAutoBackup(initialLocalState, "Spuštění z lokální paměti");
         }
       } catch (e) {
         console.error("Failed to load local state", e);
       }
     } else {
       // Fallback to default seeded state if no local cache exists
-      setState({
+      const seeded: BusinessState = {
         items: INITIAL_ITEMS,
         recipes: INITIAL_RECIPES,
         bartenders: INITIAL_BARTENDERS,
@@ -114,7 +198,9 @@ export default function App() {
         registerBalance: 10000,
         barTabs: [],
         shifts: [],
-      });
+      };
+      setState(seeded);
+      recordAutoBackup(seeded, "Výchozí inicializace");
     }
 
     // 2. Subscribe to Firebase Firestore for cloud state persistence
@@ -128,16 +214,9 @@ export default function App() {
       if (snapshot.exists()) {
         const data = snapshot.data() as BusinessState;
         
-        let needsSave = false;
-        const cleanedBartenders = (data.bartenders || []).map((b) => {
-          if (b.id === "bart_majitel" && b.status !== "active") {
-            needsSave = true;
-            return { ...b, status: "active" as const };
-          }
-          return b;
-        });
+        const { bartenders: cleanedBartenders, changed: needsSave } = ensureMandatoryManagers(data.bartenders || []);
 
-        setState({
+        const cloudState: BusinessState = {
           items: data.items || [],
           recipes: data.recipes || [],
           bartenders: cleanedBartenders,
@@ -147,40 +226,41 @@ export default function App() {
           registerBalance: data.registerBalance ?? 0,
           barTabs: data.barTabs || [],
           shifts: data.shifts || [],
-        });
-
-        const updatedData = {
-          ...data,
-          items: data.items || [],
-          bartenders: cleanedBartenders,
         };
 
-        // Keep local cache in sync
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updatedData));
+        setState(cloudState);
+
+        // Keep local cache in sync and record recovery point
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(cloudState));
+        recordAutoBackup(cloudState, "Cloudová synchronizace");
 
         if (needsSave && !isQuotaExhausted) {
           try {
-            await setDoc(docRef, updatedData);
+            await setDoc(docRef, cloudState);
           } catch (err) {
             if (isQuotaError(err)) isQuotaExhausted = true;
           }
         }
       } else {
-        // Seeding database on very first launch (fresh start)
-        const defaultState: BusinessState = {
-          items: INITIAL_ITEMS.map((item) => ({ ...item, stock: 0 })),
-          recipes: INITIAL_RECIPES,
-          bartenders: INITIAL_BARTENDERS,
-          sales: [],
-          purchases: [],
-          payouts: [],
-          registerBalance: 0,
-          barTabs: [],
-          shifts: [],
-        };
+        // Cloud document does not exist yet.
+        // If we have existing user data in local storage, sync local data up to cloud!
+        const stateToInit: BusinessState = (initialLocalState && initialLocalState.bartenders?.length > 0)
+          ? initialLocalState
+          : {
+              items: INITIAL_ITEMS.map((item) => ({ ...item, stock: 0 })),
+              recipes: INITIAL_RECIPES,
+              bartenders: INITIAL_BARTENDERS,
+              sales: [],
+              purchases: [],
+              payouts: [],
+              registerBalance: 0,
+              barTabs: [],
+              shifts: [],
+            };
+
         if (!isQuotaExhausted) {
           try {
-            await setDoc(docRef, defaultState);
+            await setDoc(docRef, stateToInit);
           } catch (err) {
             if (isQuotaError(err)) isQuotaExhausted = true;
           }
@@ -214,14 +294,16 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Save to local storage and Firestore on changes
-  const saveState = async (newState: BusinessState) => {
+  // Save to local storage, record auto backup, and write to Firestore
+  const saveState = async (newState: BusinessState, backupReason?: string) => {
     setState(newState);
     try {
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(newState));
     } catch (e) {
       console.error("Failed to write to localStorage:", e);
     }
+
+    recordAutoBackup(newState, backupReason || "Změna stavu");
 
     if (!isQuotaExhausted) {
       try {
@@ -231,6 +313,29 @@ export default function App() {
           isQuotaExhausted = true;
         }
       }
+    }
+  };
+
+  // Restore state from a historical backup point
+  const handleRestoreBackup = async (backup: AutoBackupEntry) => {
+    recordAutoBackup(state, `Před obnovou zálohy (${backup.reason})`);
+    await saveState(backup.state, `Obnoveno z: ${backup.reason}`);
+  };
+
+  // Create a manual snapshot point
+  const handleCreateManualBackup = (label: string) => {
+    recordAutoBackup(state, label || "Ruční záloha");
+  };
+
+  // Delete a backup snapshot
+  const handleDeleteBackup = (backupId: string) => {
+    try {
+      const prevList = getStoredBackups();
+      const updated = prevList.filter((b) => b.id !== backupId);
+      localStorage.setItem(BACKUPS_KEY, JSON.stringify(updated));
+      setAutoBackups(updated);
+    } catch (e) {
+      console.error("Failed to delete backup", e);
     }
   };
 
@@ -1376,6 +1481,7 @@ export default function App() {
             registerBalance={state.registerBalance}
             items={state.items}
             recipes={state.recipes}
+            backups={autoBackups}
             onAddBartender={handleAddBartender}
             onUpdateBartenderStatus={handleUpdateBartenderStatus}
             onUpdateBartenderCommission={handleUpdateBartenderCommission}
@@ -1385,6 +1491,9 @@ export default function App() {
             onPayoutBartender={handlePayoutBartender}
             onImportBackup={handleImportBackup}
             onExportBackup={handleExportBackup}
+            onRestoreBackup={handleRestoreBackup}
+            onCreateManualBackup={handleCreateManualBackup}
+            onDeleteBackup={handleDeleteBackup}
             onResetDatabase={handleResetDatabase}
             onAddRecipe={handleAddRecipe}
             onDeleteRecipe={handleDeleteRecipe}
