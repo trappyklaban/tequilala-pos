@@ -453,7 +453,6 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
   const [alert, setAlert] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [deleteRecipeConfirmId, setDeleteRecipeConfirmId] = useState<string | null>(null);
   const [deleteConfirmEmpId, setDeleteConfirmEmpId] = useState<string | null>(null);
-  const [resetDbConfirm, setResetDbConfirm] = useState(false);
 
   const triggerAlert = (type: "success" | "error", message: string) => {
     setAlert({ type, message });
@@ -2631,51 +2630,6 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
                 </button>
               </div>
             )}
-
-            {/* Emergency Factory Reset */}
-            <div className="bg-rose-950/15 border border-rose-500/20 p-5 rounded-2xl md:col-span-2 flex flex-col md:flex-row items-center justify-between gap-4">
-              <div className="space-y-1">
-                <h4 className="font-display font-bold text-rose-400 uppercase tracking-wide text-sm">
-                  🚨 Tovární reset (Vymazat data)
-                </h4>
-                <p className="text-xs text-rose-300/80">
-                  Tato akce resetuje aktuální stav podniku do výchozího demo nastavení. Před resetem se automaticky uloží záchranný bod.
-                </p>
-              </div>
-
-              {resetDbConfirm ? (
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => {
-                      onResetDatabase();
-                      triggerAlert("success", "Databáze podniku byla obnovena do továrního stavu!");
-                      setResetDbConfirm(false);
-                    }}
-                    className="py-2.5 px-5 bg-rose-600 hover:bg-rose-500 text-white font-display font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer active:scale-95 flex items-center gap-2 border border-rose-400 animate-pulse"
-                  >
-                    <LucideIcon name="AlertTriangle" className="w-4 h-4" />
-                    POTVRDIT VYMAZÁNÍ!
-                  </button>
-                  <button
-                    onClick={() => setResetDbConfirm(false)}
-                    className="py-2.5 px-3 bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white font-display font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer"
-                  >
-                    Zrušit
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => {
-                    setResetDbConfirm(true);
-                    setTimeout(() => setResetDbConfirm(false), 5000);
-                  }}
-                  className="py-2.5 px-5 bg-rose-950/60 hover:bg-rose-900 text-rose-400 hover:text-rose-300 font-display font-bold text-xs uppercase tracking-wider rounded-xl border border-rose-500/30 transition-all cursor-pointer flex items-center gap-2"
-                >
-                  <LucideIcon name="RotateCcw" className="w-4 h-4" />
-                  Resetovat Podnik
-                </button>
-              )}
-            </div>
           </div>
         </div>
       )}
