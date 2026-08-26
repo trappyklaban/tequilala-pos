@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { doc, setDoc, onSnapshot } from "firebase/firestore";
+import React, { useState, useEffect, useRef } from "react";
+import { doc, setDoc, onSnapshot, collection, deleteDoc } from "firebase/firestore";
 import { db, handleFirestoreError, OperationType } from "./firebase";
 import {
   BusinessState,
@@ -14,6 +14,7 @@ import {
   BarTab,
   ShiftLog,
   AutoBackupEntry,
+  DailyFirestoreBackup,
 } from "./types";
 import {
   INITIAL_ITEMS,
@@ -137,11 +138,17 @@ export default function App() {
   });
 
   const [autoBackups, setAutoBackups] = useState<AutoBackupEntry[]>([]);
+  const [dailyFirestoreBackups, setDailyFirestoreBackups] = useState<DailyFirestoreBackup[]>([]);
   const [activeTab, setActiveTab] = useState<"pos" | "craft" | "inventory" | "management" | "shift">("pos");
   const [session, setSession] = useState<{ role: "manager" | "barman"; bartenderId?: string } | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [shiftStartTime, setShiftStartTime] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const stateRef = useRef<BusinessState>(state);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
   const [shiftSummary, setShiftSummary] = useState<{
     bartenderName: string;
     startTime: string;
@@ -240,7 +247,7 @@ export default function App() {
 
     // 2. Subscribe to Firebase Firestore for cloud state persistence
     const docRef = doc(db, "company", "state");
-    const unsubscribe = onSnapshot(docRef, async (snapshot) => {
+    const unsubscribeState = onSnapshot(docRef, async (snapshot) => {
       // Ignore local optimistic writes to prevent re-triggering setDoc write streams in an infinite loop
       if (snapshot.metadata.hasPendingWrites) {
         return;
@@ -310,6 +317,23 @@ export default function App() {
       if (isQuotaError(error)) isQuotaExhausted = true;
     });
 
+    // 3. Subscribe to daily midnight backups collection in Firestore
+    const backupsCol = collection(db, "daily_backups");
+    const unsubscribeDailyBackups = onSnapshot(backupsCol, (snapshot) => {
+      const list: DailyFirestoreBackup[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data() as DailyFirestoreBackup;
+        if (data && data.state) {
+          list.push(data);
+        }
+      });
+      list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      setDailyFirestoreBackups(list);
+    }, (error) => {
+      if (isQuotaError(error)) isQuotaExhausted = true;
+      handleFirestoreError(error, OperationType.GET, "daily_backups");
+    });
+
     const savedSession = localStorage.getItem("tequilala_terminal_session");
     if (savedSession) {
       try {
@@ -331,7 +355,10 @@ export default function App() {
       setShiftStartTime(savedShiftStart);
     }
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeState();
+      unsubscribeDailyBackups();
+    };
   }, []);
 
   // Save to local storage, record auto backup, and write to Firestore
@@ -356,10 +383,128 @@ export default function App() {
     }
   };
 
+  // Perform daily midnight or manual cloud backup to Firestore
+  const saveDailyMidnightBackup = async (
+    stateToBackup: BusinessState,
+    type: "midnight_auto" | "manual_cloud" = "midnight_auto",
+    customTitle?: string
+  ) => {
+    if (!stateToBackup) return;
+    try {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, "0");
+      const day = String(now.getDate()).padStart(2, "0");
+      const dateKey = `${year}-${month}-${day}`;
+      const docId = type === "midnight_auto" ? `backup_${dateKey}_midnight` : `backup_${dateKey}_${Date.now()}`;
+
+      const totalRev = (stateToBackup.sales || []).reduce((acc, s) => acc + (s.totalAmount || 0), 0);
+      const title =
+        customTitle ||
+        (type === "midnight_auto"
+          ? `Půlnoční automatická záloha (${day}. ${month}. ${year} 00:00)`
+          : `Ruční cloudová záloha (${day}. ${month}. ${year} ${now.toLocaleTimeString("cs-CZ", { hour: "2-digit", minute: "2-digit" })})`);
+
+      const backupData: DailyFirestoreBackup = {
+        id: docId,
+        dateKey,
+        timestamp: now.toISOString(),
+        type,
+        title,
+        shiftsCount: (stateToBackup.shifts || []).length,
+        salesCount: (stateToBackup.sales || []).length,
+        bartendersCount: (stateToBackup.bartenders || []).length,
+        itemsCount: (stateToBackup.items || []).length,
+        totalRevenue: totalRev,
+        registerBalance: stateToBackup.registerBalance ?? 0,
+        state: JSON.parse(JSON.stringify(stateToBackup)),
+      };
+
+      if (!isQuotaExhausted) {
+        await setDoc(doc(db, "daily_backups", docId), backupData);
+      }
+      recordAutoBackup(stateToBackup, title);
+    } catch (err) {
+      if (isQuotaError(err)) isQuotaExhausted = true;
+      handleFirestoreError(err, OperationType.WRITE, "daily_backups");
+    }
+  };
+
+  // Automated midnight scheduler & periodic health-check
+  useEffect(() => {
+    let timerId: any = null;
+
+    const scheduleMidnight = () => {
+      const now = new Date();
+      // Target next 00:00:05
+      const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 5);
+      const msUntilMidnight = Math.max(1000, nextMidnight.getTime() - now.getTime());
+
+      timerId = setTimeout(() => {
+        // Automatically save snapshot to Firestore daily_backups
+        saveDailyMidnightBackup(stateRef.current, "midnight_auto");
+        // Schedule next midnight
+        scheduleMidnight();
+      }, msUntilMidnight);
+    };
+
+    scheduleMidnight();
+
+    // Check periodically if current date is covered by a baseline backup
+    const intervalId = setInterval(() => {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, "0");
+      const day = String(now.getDate()).padStart(2, "0");
+      const todayKey = `${year}-${month}-${day}`;
+
+      const hasTodayBackup = dailyFirestoreBackups.some((b) => b.dateKey === todayKey && b.type === "midnight_auto");
+      if (
+        !hasTodayBackup &&
+        stateRef.current &&
+        stateRef.current.bartenders?.length > 0 &&
+        ((stateRef.current.sales && stateRef.current.sales.length > 0) ||
+          (stateRef.current.shifts && stateRef.current.shifts.length > 0))
+      ) {
+        saveDailyMidnightBackup(stateRef.current, "midnight_auto");
+      }
+    }, 15 * 60 * 1000);
+
+    return () => {
+      if (timerId) clearTimeout(timerId);
+      clearInterval(intervalId);
+    };
+  }, [dailyFirestoreBackups]);
+
   // Restore state from a historical backup point
   const handleRestoreBackup = async (backup: AutoBackupEntry) => {
     recordAutoBackup(state, `Před obnovou zálohy (${backup.reason})`);
     await saveState(backup.state, `Obnoveno z: ${backup.reason}`);
+  };
+
+  // Restore from a daily Firestore backup
+  const handleRestoreDailyBackup = async (backup: DailyFirestoreBackup) => {
+    if (!backup || !backup.state) return;
+    recordAutoBackup(state, `Před obnovou z cloudové zálohy: ${backup.title}`);
+    await saveState(backup.state, `Obnoveno z cloudové zálohy: ${backup.title}`);
+  };
+
+  // Manual cloud backup trigger
+  const handleCreateDailyCloudBackup = async () => {
+    await saveDailyMidnightBackup(state, "manual_cloud");
+  };
+
+  // Delete a Firestore daily backup
+  const handleDeleteDailyBackup = async (backupId: string) => {
+    try {
+      if (!isQuotaExhausted) {
+        await deleteDoc(doc(db, "daily_backups", backupId));
+      }
+      setDailyFirestoreBackups((prev) => prev.filter((b) => b.id !== backupId));
+    } catch (err) {
+      if (isQuotaError(err)) isQuotaExhausted = true;
+      handleFirestoreError(err, OperationType.DELETE, `daily_backups/${backupId}`);
+    }
   };
 
   // Create a manual snapshot point
@@ -1543,6 +1688,7 @@ export default function App() {
             items={state.items}
             recipes={state.recipes}
             backups={autoBackups}
+            dailyFirestoreBackups={dailyFirestoreBackups}
             onAddBartender={handleAddBartender}
             onUpdateBartenderStatus={handleUpdateBartenderStatus}
             onUpdateBartenderCommission={handleUpdateBartenderCommission}
@@ -1555,6 +1701,9 @@ export default function App() {
             onRestoreBackup={handleRestoreBackup}
             onCreateManualBackup={handleCreateManualBackup}
             onDeleteBackup={handleDeleteBackup}
+            onCreateDailyCloudBackup={handleCreateDailyCloudBackup}
+            onRestoreDailyBackup={handleRestoreDailyBackup}
+            onDeleteDailyBackup={handleDeleteDailyBackup}
             onResetDatabase={handleResetDatabase}
             onAddRecipe={handleAddRecipe}
             onDeleteRecipe={handleDeleteRecipe}

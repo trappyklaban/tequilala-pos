@@ -10,6 +10,7 @@ import {
   ItemCategory,
   ShiftLog,
   AutoBackupEntry,
+  DailyFirestoreBackup,
 } from "../types";
 import { LucideIcon } from "./LucideIcon";
 
@@ -31,6 +32,7 @@ interface ManagementTabProps {
   items: InventoryItem[];
   recipes: Recipe[];
   backups?: AutoBackupEntry[];
+  dailyFirestoreBackups?: DailyFirestoreBackup[];
   onAddBartender: (name: string, rate: number, pin?: string, role?: "manager" | "barman") => void;
   onUpdateBartenderStatus: (id: string, active: boolean) => void;
   onUpdateBartenderCommission: (id: string, rate: number) => void;
@@ -43,6 +45,9 @@ interface ManagementTabProps {
   onRestoreBackup?: (backup: AutoBackupEntry) => void;
   onCreateManualBackup?: (label: string) => void;
   onDeleteBackup?: (backupId: string) => void;
+  onCreateDailyCloudBackup?: () => void;
+  onRestoreDailyBackup?: (backup: DailyFirestoreBackup) => void;
+  onDeleteDailyBackup?: (backupId: string) => void;
   onResetDatabase: () => void;
   onAddRecipe: (recipe: Omit<Recipe, "id">, newItemToCreate?: Omit<InventoryItem, "id">) => void;
   onDeleteRecipe: (id: string) => void;
@@ -66,6 +71,7 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
   items,
   recipes,
   backups = [],
+  dailyFirestoreBackups = [],
   onAddBartender,
   onUpdateBartenderStatus,
   onUpdateBartenderCommission,
@@ -78,6 +84,9 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
   onRestoreBackup,
   onCreateManualBackup,
   onDeleteBackup,
+  onCreateDailyCloudBackup,
+  onRestoreDailyBackup,
+  onDeleteDailyBackup,
   onResetDatabase,
   onAddRecipe,
   onDeleteRecipe,
@@ -90,6 +99,7 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
   const [expandedShiftIds, setExpandedShiftIds] = useState<Record<string, boolean>>({});
   const [confirmDeleteShiftId, setConfirmDeleteShiftId] = useState<string | null>(null);
   const [restoreConfirmBackup, setRestoreConfirmBackup] = useState<AutoBackupEntry | null>(null);
+  const [restoreConfirmDailyBackup, setRestoreConfirmDailyBackup] = useState<DailyFirestoreBackup | null>(null);
   const [manualBackupName, setManualBackupName] = useState("");
   const [showCreateBackupInput, setShowCreateBackupInput] = useState(false);
 
@@ -2328,7 +2338,87 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
       {/* SUB TAB 4: BACKUPS, IMPORTS & EXPORTS */}
       {activeSubTab === "backup" && (
         <div className="space-y-6">
-          {/* RESTORE CONFIRMATION MODAL */}
+          {/* RESTORE DAILY FIRESTORE BACKUP CONFIRMATION MODAL */}
+          {restoreConfirmDailyBackup && (
+            <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-zinc-950 border border-blue-500/50 p-6 rounded-2xl w-full max-w-md shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-200">
+                <div className="flex items-center gap-3 text-blue-400">
+                  <div className="p-2.5 bg-blue-500/10 rounded-xl border border-blue-500/30">
+                    <LucideIcon name="CloudDownload" className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-display font-bold text-white uppercase text-base tracking-wider">
+                      Obnovit z Půlnoční Cloudové Zálohy?
+                    </h3>
+                    <p className="text-xs text-zinc-400">
+                      Vrátit data baru do stavu z Firestore databáze
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-xl space-y-2 text-xs font-mono">
+                  <div className="flex justify-between text-zinc-400">
+                    <span>Název zálohy:</span>
+                    <span className="text-blue-300 font-bold">{restoreConfirmDailyBackup.title}</span>
+                  </div>
+                  <div className="flex justify-between text-zinc-400">
+                    <span>Datum uložení:</span>
+                    <span className="text-white font-bold">
+                      {new Date(restoreConfirmDailyBackup.timestamp).toLocaleString("cs-CZ")}
+                    </span>
+                  </div>
+                  <div className="pt-2 border-t border-zinc-800 grid grid-cols-2 gap-2 text-[11px]">
+                    <div className="bg-zinc-950 p-2 rounded border border-zinc-850">
+                      <span className="text-zinc-500 block text-[9px] uppercase">Směny</span>
+                      <span className="text-blue-400 font-bold">{restoreConfirmDailyBackup.shiftsCount || 0} směn</span>
+                    </div>
+                    <div className="bg-zinc-950 p-2 rounded border border-zinc-850">
+                      <span className="text-zinc-500 block text-[9px] uppercase">Tržby ($)</span>
+                      <span className="text-emerald-400 font-bold">
+                        ${restoreConfirmDailyBackup.totalRevenue?.toLocaleString("cs-CZ") || "0"}
+                      </span>
+                    </div>
+                    <div className="bg-zinc-950 p-2 rounded border border-zinc-850">
+                      <span className="text-zinc-500 block text-[9px] uppercase">Účtenky</span>
+                      <span className="text-tequila-yellow font-bold">{restoreConfirmDailyBackup.salesCount || 0} prodejů</span>
+                    </div>
+                    <div className="bg-zinc-950 p-2 rounded border border-zinc-850">
+                      <span className="text-zinc-500 block text-[9px] uppercase">Kasa</span>
+                      <span className="text-zinc-300 font-bold">${restoreConfirmDailyBackup.registerBalance?.toFixed(2) || "0.00"}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-blue-950/30 border border-blue-500/20 rounded-xl text-blue-300 text-xs">
+                  ℹ️ Aktuální stav baru bude před obnovou automaticky uložen jako záchranný bod.
+                </div>
+
+                <div className="flex items-center gap-2 pt-2">
+                  <button
+                    onClick={() => {
+                      if (onRestoreDailyBackup) {
+                        onRestoreDailyBackup(restoreConfirmDailyBackup);
+                        triggerAlert("success", `Data byla úspěšně obnovena z cloudové zálohy: ${restoreConfirmDailyBackup.title}`);
+                      }
+                      setRestoreConfirmDailyBackup(null);
+                    }}
+                    className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 text-white font-display font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2"
+                  >
+                    <LucideIcon name="Check" className="w-4 h-4" />
+                    Ano, obnovit bar z cloudu
+                  </button>
+                  <button
+                    onClick={() => setRestoreConfirmDailyBackup(null)}
+                    className="py-3 px-4 bg-zinc-900 hover:bg-zinc-850 text-zinc-400 hover:text-white font-display font-bold text-xs uppercase tracking-wider rounded-xl border border-zinc-800 transition-all cursor-pointer"
+                  >
+                    Zrušit
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* RESTORE CONFIRMATION MODAL (LOCAL) */}
           {restoreConfirmBackup && (
             <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
               <div className="bg-zinc-950 border border-tequila-orange/50 p-6 rounded-2xl w-full max-w-md shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-200">
@@ -2405,6 +2495,152 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
               </div>
             </div>
           )}
+
+          {/* FIRESTORE CLOUD MIDNIGHT BACKUPS PANEL */}
+          <div className="bg-gradient-to-br from-zinc-900 via-zinc-900 to-blue-950/30 border border-blue-500/30 p-5 rounded-2xl space-y-4 shadow-xl">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="p-1.5 bg-blue-500/15 border border-blue-500/30 text-blue-400 rounded-lg">
+                    <LucideIcon name="Cloud" className="w-4 h-4" />
+                  </span>
+                  <h3 className="text-base font-display font-bold text-white uppercase tracking-tight flex items-center gap-2">
+                    Automatické Půlnoční Zálohy (Cloud Firestore)
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-mono font-bold uppercase tracking-wider">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                      Aktivní (00:00)
+                    </span>
+                  </h3>
+                </div>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Systém každý den přesně o půlnoci (00:00) automaticky uloží kompletní záložní bod podniku do Firestore databáze. Zálohy jsou trvale uchovány v cloudu.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => {
+                    if (onCreateDailyCloudBackup) {
+                      onCreateDailyCloudBackup();
+                      triggerAlert("success", "Záloha byla úspěšně odeslána do Firestore databáze!");
+                    }
+                  }}
+                  className="py-2.5 px-4 bg-blue-600 hover:bg-blue-500 border border-blue-400/40 text-white font-display font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center gap-2 shadow-lg shadow-blue-600/20 active:scale-95"
+                >
+                  <LucideIcon name="CloudUpload" className="w-4 h-4" />
+                  Vytvořit okamžitou zálohu do Firestore
+                </button>
+              </div>
+            </div>
+
+            {/* Daily Firestore Backups List */}
+            {dailyFirestoreBackups.length === 0 ? (
+              <div className="bg-zinc-950/60 border border-dashed border-blue-500/20 rounded-xl p-8 text-center space-y-2">
+                <LucideIcon name="Cloud" className="w-8 h-8 text-blue-400/60 mx-auto" />
+                <p className="text-xs text-zinc-300 font-mono">
+                  Zatím nebyla zaznamenána žádná cloudová záloha.
+                </p>
+                <p className="text-[11px] text-zinc-500">
+                  První automatická záloha se provede dnes o půlnoci (00:00), nebo můžete provést okamžitou zálohu tlačítkem výše.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
+                {dailyFirestoreBackups.map((b) => (
+                  <div
+                    key={b.id}
+                    className="bg-zinc-950/85 border border-blue-500/20 hover:border-blue-400/50 p-3.5 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all"
+                  >
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono text-xs font-bold text-white flex items-center gap-1.5">
+                          <LucideIcon name="Calendar" className="w-3.5 h-3.5 text-blue-400" />
+                          {b.dateKey || new Date(b.timestamp).toLocaleDateString("cs-CZ")}
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/15 border border-blue-500/30 text-blue-300 font-bold uppercase tracking-wider">
+                          {b.type === "midnight_auto" ? "Půlnoční automatická" : "Ruční cloudová"}
+                        </span>
+                        <span className="text-[10px] text-zinc-400 font-mono">
+                          {new Date(b.timestamp).toLocaleTimeString("cs-CZ", { hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-3 text-[11px] text-zinc-400 font-mono flex-wrap">
+                        <span className="flex items-center gap-1">
+                          <LucideIcon name="Clock" className="w-3 h-3 text-blue-400" />
+                          <strong className="text-blue-400">{b.shiftsCount ?? b.state?.shifts?.length ?? 0}</strong> směn
+                        </span>
+                        <span>•</span>
+                        <span className="flex items-center gap-1">
+                          <LucideIcon name="DollarSign" className="w-3 h-3 text-emerald-400" />
+                          <strong className="text-emerald-400">
+                            ${b.totalRevenue?.toLocaleString("cs-CZ") || (b.state?.sales || []).reduce((acc, s) => acc + (s.totalAmount || 0), 0).toLocaleString("cs-CZ")}
+                          </strong> tržby
+                        </span>
+                        <span>•</span>
+                        <span className="flex items-center gap-1">
+                          <LucideIcon name="Receipt" className="w-3 h-3 text-tequila-yellow" />
+                          <strong className="text-tequila-yellow">{b.salesCount ?? b.state?.sales?.length ?? 0}</strong> účtenek
+                        </span>
+                        <span>•</span>
+                        <span className="flex items-center gap-1">
+                          <LucideIcon name="Users" className="w-3 h-3 text-purple-400" />
+                          <strong className="text-purple-400">{b.bartendersCount ?? b.state?.bartenders?.length ?? 0}</strong> uživatelů
+                        </span>
+                        <span>•</span>
+                        <span className="flex items-center gap-1">
+                          <LucideIcon name="Coins" className="w-3 h-3 text-zinc-400" />
+                          Kasa: ${b.registerBalance?.toFixed(2) || b.state?.registerBalance?.toFixed(2) || "0.00"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => setRestoreConfirmDailyBackup(b)}
+                        className="py-1.5 px-3 bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white border border-blue-500/30 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+                        title="Obnovit bar z této cloudové zálohy"
+                      >
+                        <LucideIcon name="RotateCcw" className="w-3.5 h-3.5" />
+                        Obnovit
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(b.state));
+                          const dlAnchor = document.createElement("a");
+                          dlAnchor.setAttribute("href", dataStr);
+                          dlAnchor.setAttribute("download", `tequilala_firestore_backup_${b.dateKey || "snapshot"}.json`);
+                          document.body.appendChild(dlAnchor);
+                          dlAnchor.click();
+                          dlAnchor.remove();
+                        }}
+                        className="p-1.5 bg-zinc-900 hover:bg-zinc-850 text-zinc-400 hover:text-white border border-zinc-800 rounded-lg transition-colors cursor-pointer"
+                        title="Stáhnout JSON soubor této cloudové zálohy"
+                      >
+                        <LucideIcon name="Download" className="w-3.5 h-3.5" />
+                      </button>
+
+                      {onDeleteDailyBackup && (
+                        <button
+                          onClick={() => {
+                            if (confirm(`Opravdu chcete smazat zálohu z ${b.dateKey}?`)) {
+                              onDeleteDailyBackup(b.id);
+                              triggerAlert("success", "Záloha byla odstraněna z cloudu.");
+                            }
+                          }}
+                          className="p-1.5 bg-zinc-900 hover:bg-rose-950/40 text-zinc-600 hover:text-rose-400 border border-zinc-800 hover:border-rose-900/30 rounded-lg transition-colors cursor-pointer"
+                          title="Odstranit tuto cloudovou zálohu"
+                        >
+                          <LucideIcon name="Trash2" className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* AUTO-BACKUPS HISTORY PANEL */}
           <div className="bg-tequila-card border border-tequila-border p-5 rounded-2xl space-y-4">

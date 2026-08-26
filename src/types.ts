@@ -123,3 +123,18 @@ export interface AutoBackupEntry {
   itemsCount: number;
   state: BusinessState;
 }
+
+export interface DailyFirestoreBackup {
+  id: string;
+  dateKey: string; // e.g. "2026-08-26"
+  timestamp: string;
+  type: "midnight_auto" | "manual_cloud";
+  title: string;
+  shiftsCount: number;
+  salesCount: number;
+  bartendersCount: number;
+  itemsCount: number;
+  totalRevenue: number;
+  registerBalance: number;
+  state: BusinessState;
+}

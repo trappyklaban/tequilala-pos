@@ -199,12 +199,36 @@
         }
       },
       "required": ["items", "recipes", "bartenders", "sales", "purchases", "payouts", "registerBalance", "barTabs"]
+    },
+    "DailyFirestoreBackup": {
+      "title": "DailyFirestoreBackup",
+      "description": "Daily automated midnight backup snapshot stored on Firestore.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "dateKey": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "type": { "type": "string", "enum": ["midnight_auto", "manual_cloud"] },
+        "title": { "type": "string" },
+        "shiftsCount": { "type": "number" },
+        "salesCount": { "type": "number" },
+        "bartendersCount": { "type": "number" },
+        "itemsCount": { "type": "number" },
+        "totalRevenue": { "type": "number" },
+        "registerBalance": { "type": "number" },
+        "state": { "$ref": "#/entities/BusinessState" }
+      },
+      "required": ["id", "dateKey", "timestamp", "type", "title", "state"]
     }
   },
   "firestore": {
     "company/state": {
       "schema": "BusinessState",
       "description": "The master singleton document containing the entire state of Tequilala bar."
+    },
+    "daily_backups/{backupId}": {
+      "schema": "DailyFirestoreBackup",
+      "description": "Historical midnight backup snapshots created daily on Firestore."
     }
   }
 }
