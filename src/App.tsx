@@ -113,6 +113,26 @@ function getStoredBackups(): AutoBackupEntry[] {
   }
 }
 
+function safelyStoreBackups(list: AutoBackupEntry[]): AutoBackupEntry[] {
+  let count = Math.min(list.length, 8);
+  while (count > 0) {
+    try {
+      const slice = list.slice(0, count);
+      localStorage.setItem(BACKUPS_KEY, JSON.stringify(slice));
+      return slice;
+    } catch {
+      // If Quota exceeded, reduce count of retained local backups and retry
+      count--;
+    }
+  }
+  try {
+    localStorage.removeItem(BACKUPS_KEY);
+  } catch {
+    // ignore
+  }
+  return [];
+}
+
 function isQuotaError(err: any): boolean {
   if (!err) return false;
   const msg = String(err?.message || err);
@@ -173,8 +193,8 @@ export default function App() {
       if (prevList.length > 0) {
         const latest = prevList[0];
         const timeDiff = Date.now() - new Date(latest.timestamp).getTime();
-        // Prevent duplicate snapshots within 8 seconds with the same reason
-        if (timeDiff < 8000 && latest.reason === reason) {
+        // Prevent duplicate snapshots within 10 seconds with the same reason
+        if (timeDiff < 10000 && latest.reason === reason) {
           return;
         }
       }
@@ -188,11 +208,10 @@ export default function App() {
         itemsCount: (stateToSave.items || []).length,
         state: JSON.parse(JSON.stringify(stateToSave)),
       };
-      const updated = [entry, ...prevList].slice(0, 30);
-      localStorage.setItem(BACKUPS_KEY, JSON.stringify(updated));
+      const updated = safelyStoreBackups([entry, ...prevList]);
       setAutoBackups(updated);
     } catch (e) {
-      console.error("Failed to save backup snapshot", e);
+      console.warn("Failed to save backup snapshot", e);
     }
   };
 
@@ -366,8 +385,14 @@ export default function App() {
     setState(newState);
     try {
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(newState));
-    } catch (e) {
-      console.error("Failed to write to localStorage:", e);
+    } catch {
+      // If quota issue, trim backups from localStorage to free space for primary state
+      try {
+        safelyStoreBackups(autoBackups.slice(0, 2));
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(newState));
+      } catch (inner) {
+        console.warn("Could not write active state to localStorage", inner);
+      }
     }
 
     recordAutoBackup(newState, backupReason || "Změna stavu");
@@ -517,10 +542,10 @@ export default function App() {
     try {
       const prevList = getStoredBackups();
       const updated = prevList.filter((b) => b.id !== backupId);
-      localStorage.setItem(BACKUPS_KEY, JSON.stringify(updated));
-      setAutoBackups(updated);
+      const saved = safelyStoreBackups(updated);
+      setAutoBackups(saved);
     } catch (e) {
-      console.error("Failed to delete backup", e);
+      console.warn("Failed to delete backup", e);
     }
   };
 
@@ -1149,17 +1174,83 @@ export default function App() {
     });
   };
 
-  const handleUpdateShift = (shiftId: string, newStartTime: string, newEndTime: string) => {
+  const handleUpdateShift = (
+    shiftId: string,
+    newStartTime: string,
+    newEndTime: string,
+    newBartenderId?: string
+  ) => {
     const shiftsList = state.shifts || [];
     const shiftIndex = shiftsList.findIndex((s) => s.id === shiftId);
     if (shiftIndex === -1) return;
 
     const currentShift = shiftsList[shiftIndex];
+    const targetBartenderId = newBartenderId || currentShift.bartenderId;
+    const targetBartender = state.bartenders.find((b) => b.id === targetBartenderId);
+    const targetBartenderName = targetBartender ? targetBartender.name : currentShift.bartenderName;
+    const targetCommissionRate = targetBartender ? targetBartender.commissionRate : 0;
+    const isBartenderChanged = targetBartenderId !== currentShift.bartenderId;
 
-    // Find sales in the new time window for this bartender
-    const shiftSales = state.sales.filter(
-      (s) => s.bartenderId === currentShift.bartenderId && s.timestamp >= newStartTime && s.timestamp <= newEndTime
-    );
+    let updatedSales = [...state.sales];
+    let updatedBartenders = [...state.bartenders];
+
+    const shiftSaleIds = new Set((currentShift.sales || []).map((s) => s.id));
+    let shiftSales: SaleLog[] = [];
+
+    if (isBartenderChanged) {
+      // Find all sales belonging to this shift
+      const salesToReassign = updatedSales.filter((s) => {
+        if (shiftSaleIds.has(s.id)) return true;
+        const matchesOldBartender = s.bartenderId === currentShift.bartenderId;
+        const inWindow = s.timestamp >= newStartTime && s.timestamp <= newEndTime;
+        return matchesOldBartender && inWindow;
+      });
+
+      let oldTotalCommission = 0;
+      let newTotalCommission = 0;
+
+      const reassignMap = new Map<string, SaleLog>();
+
+      salesToReassign.forEach((s) => {
+        oldTotalCommission += s.commissionPaid || 0;
+        const newComm = (s.totalAmount || 0) * (targetCommissionRate / 100);
+        newTotalCommission += newComm;
+
+        const updatedSale: SaleLog = {
+          ...s,
+          bartenderId: targetBartenderId,
+          bartenderName: targetBartenderName,
+          commissionPaid: newComm,
+        };
+        reassignMap.set(s.id, updatedSale);
+      });
+
+      // Update state.sales
+      updatedSales = updatedSales.map((s) => reassignMap.get(s.id) || s);
+      shiftSales = Array.from(reassignMap.values());
+
+      // Adjust bartenders' accumulated commissions
+      updatedBartenders = updatedBartenders.map((b) => {
+        if (b.id === currentShift.bartenderId) {
+          return {
+            ...b,
+            totalCommissionEarned: Math.max(0, b.totalCommissionEarned - oldTotalCommission),
+          };
+        }
+        if (b.id === targetBartenderId) {
+          return {
+            ...b,
+            totalCommissionEarned: b.totalCommissionEarned + newTotalCommission,
+          };
+        }
+        return b;
+      });
+    } else {
+      // Same bartender: look up sales in the new time window
+      shiftSales = updatedSales.filter(
+        (s) => s.bartenderId === currentShift.bartenderId && s.timestamp >= newStartTime && s.timestamp <= newEndTime
+      );
+    }
 
     const salesCount = shiftSales.length;
     const salesTotal = shiftSales.reduce((sum, s) => sum + s.totalAmount, 0);
@@ -1173,6 +1264,8 @@ export default function App() {
 
     const updatedShift: ShiftLog = {
       ...currentShift,
+      bartenderId: targetBartenderId,
+      bartenderName: targetBartenderName,
       startTime: newStartTime,
       endTime: newEndTime,
       salesCount,
@@ -1189,8 +1282,10 @@ export default function App() {
 
     saveState({
       ...state,
+      sales: updatedSales,
+      bartenders: updatedBartenders,
       shifts: updatedShifts,
-    });
+    }, `Úprava směny: ${targetBartenderName} (${new Date(newStartTime).toLocaleDateString("cs-CZ")})`);
   };
 
   // 7. ADD EMPLOYEES & COMMISSION MANAGER

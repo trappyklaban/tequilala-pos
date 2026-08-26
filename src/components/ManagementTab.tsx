@@ -57,7 +57,7 @@ interface ManagementTabProps {
     updatedItem?: Partial<Omit<InventoryItem, "id" | "type" | "stock">>
   ) => void;
   onDeleteShift?: (id: string) => void;
-  onUpdateShift?: (id: string, startTime: string, endTime: string) => void;
+  onUpdateShift?: (id: string, startTime: string, endTime: string, bartenderId?: string) => void;
   onLoadSimulatedData?: () => void;
 }
 
@@ -107,6 +107,7 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
   const [editingShiftId, setEditingShiftId] = useState<string | null>(null);
   const [editShiftStart, setEditShiftStart] = useState<string>("");
   const [editShiftEnd, setEditShiftEnd] = useState<string>("");
+  const [editShiftBartenderId, setEditShiftBartenderId] = useState<string>("");
 
   // Export Subsidies state
   const pad = (n: number) => (n < 10 ? "0" + n : String(n));
@@ -1933,16 +1934,21 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
                                     <button
                                       type="button"
                                       onClick={() => {
-                                        setEditingShiftId(editingShiftId === shift.id ? null : shift.id);
-                                        setEditShiftStart(toDatetimeLocal(shift.startTime));
-                                        setEditShiftEnd(toDatetimeLocal(shift.endTime));
+                                        if (editingShiftId === shift.id) {
+                                          setEditingShiftId(null);
+                                        } else {
+                                          setEditingShiftId(shift.id);
+                                          setEditShiftStart(toDatetimeLocal(shift.startTime));
+                                          setEditShiftEnd(toDatetimeLocal(shift.endTime));
+                                          setEditShiftBartenderId(shift.bartenderId);
+                                        }
                                       }}
                                       className={`p-1 rounded-md transition-colors cursor-pointer ${
                                         editingShiftId === shift.id
                                           ? "text-tequila-yellow bg-tequila-yellow/20"
                                           : "text-zinc-500 hover:text-tequila-yellow hover:bg-tequila-yellow/10"
                                       }`}
-                                      title="Opravit čas začátku a konce směny"
+                                      title="Upravit směnu (změnit barmana nebo časy začátku a konce)"
                                     >
                                       <LucideIcon name="Pencil" className="w-3.5 h-3.5" />
                                     </button>
@@ -1992,13 +1998,13 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
                                 Do: {new Date(shift.endTime).toLocaleString("cs-CZ")}
                               </p>
 
-                              {/* SHIFT TIME EDIT FORM */}
+                              {/* SHIFT TIME & BARTENDER EDIT FORM */}
                               {editingShiftId === shift.id && (
-                                <div className="bg-zinc-950 border border-tequila-yellow/40 p-3 rounded-xl space-y-3 mt-3 w-full">
+                                <div className="bg-zinc-950 border border-tequila-yellow/40 p-3.5 rounded-xl space-y-3 mt-3 w-full shadow-lg">
                                   <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
                                     <span className="text-xs font-bold text-tequila-yellow uppercase tracking-wide flex items-center gap-1.5">
                                       <LucideIcon name="Pencil" className="w-3.5 h-3.5" />
-                                      Opravit Časy Směny
+                                      Upravit Směnu a Přiřazeného Barmana
                                     </span>
                                     <button
                                       type="button"
@@ -2008,7 +2014,23 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
                                       ✕
                                     </button>
                                   </div>
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                                    <div>
+                                      <label className="block text-[9px] text-zinc-400 font-bold uppercase mb-1">
+                                        Obsluha / Barman na směně
+                                      </label>
+                                      <select
+                                        value={editShiftBartenderId}
+                                        onChange={(e) => setEditShiftBartenderId(e.target.value)}
+                                        className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-zinc-100 font-mono text-xs focus:border-tequila-yellow focus:outline-none"
+                                      >
+                                        {bartenders.map((b) => (
+                                          <option key={b.id} value={b.id}>
+                                            {b.name} ({b.commissionRate}% provize{b.status === "inactive" ? " - neaktivní" : ""})
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
                                     <div>
                                       <label className="block text-[9px] text-zinc-400 font-bold uppercase mb-1">Začátek Směny</label>
                                       <input
@@ -2030,7 +2052,7 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
                                   </div>
                                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-zinc-900">
                                     <span className="text-[9px] text-zinc-500 italic">
-                                      * Změna časů automaticky přepočítá prodeje a provize pro toto časové okno.
+                                      * Změna barmana automaticky převede prodeje a provize ze směny na nového zaměstnance.
                                     </span>
                                     <div className="flex gap-2 shrink-0">
                                       <button
@@ -2046,13 +2068,15 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
                                           if (onUpdateShift && editShiftStart && editShiftEnd) {
                                             const isoStart = new Date(editShiftStart).toISOString();
                                             const isoEnd = new Date(editShiftEnd).toISOString();
-                                            onUpdateShift(shift.id, isoStart, isoEnd);
+                                            onUpdateShift(shift.id, isoStart, isoEnd, editShiftBartenderId || shift.bartenderId);
                                             setEditingShiftId(null);
+                                            triggerAlert("success", "Směna byla úspěšně upravena!");
                                           }
                                         }}
-                                        className="px-3 py-1.5 rounded-lg text-xs font-bold text-zinc-950 bg-tequila-yellow hover:bg-amber-400 cursor-pointer transition-colors"
+                                        className="px-3 py-1.5 rounded-lg text-xs font-bold text-zinc-950 bg-tequila-yellow hover:bg-amber-400 cursor-pointer transition-colors flex items-center gap-1.5 shadow-sm"
                                       >
-                                        Uložit opravené časy
+                                        <LucideIcon name="Check" className="w-3.5 h-3.5" />
+                                        Uložit změny směny
                                       </button>
                                     </div>
                                   </div>
