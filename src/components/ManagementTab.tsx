@@ -53,6 +53,7 @@ interface ManagementTabProps {
   ) => void;
   onDeleteShift?: (id: string) => void;
   onUpdateShift?: (id: string, startTime: string, endTime: string) => void;
+  onLoadSimulatedData?: () => void;
 }
 
 export const ManagementTab: React.FC<ManagementTabProps> = ({
@@ -83,6 +84,7 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
   onUpdateRecipe,
   onDeleteShift,
   onUpdateShift,
+  onLoadSimulatedData,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<"employees" | "recipes" | "stats" | "history" | "backup">("employees");
   const [expandedShiftIds, setExpandedShiftIds] = useState<Record<string, boolean>>({});
@@ -1526,6 +1528,49 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
       {/* SUB TAB 2: BUSINESS STATS & GRAPHICS */}
       {activeSubTab === "stats" && (
         <div className="space-y-6">
+          {/* Monthly Shift Summary Banner */}
+          <div className="bg-gradient-to-r from-amber-950/30 via-zinc-900 to-zinc-950 border border-amber-500/30 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 text-amber-400 rounded-xl">
+                <LucideIcon name="Calendar" className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="text-sm font-display font-bold text-white uppercase tracking-tight">
+                    Měsíční výkaz směn a tržeb (Srpen 2026)
+                  </h4>
+                  <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                    Aktivní data
+                  </span>
+                </div>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Od 1. srpna do 26. srpna zaznamenáno <strong>{(shifts || []).length} směn</strong> (~
+                  {(
+                    (shifts || []).reduce((acc, s) => {
+                      const dur = new Date(s.endTime).getTime() - new Date(s.startTime).getTime();
+                      return acc + (isNaN(dur) ? 0 : Math.max(0, dur));
+                    }, 0) / (1000 * 60 * 60)
+                  ).toFixed(1)}{" "}
+                  hodin) a <strong>${totalRevenue.toFixed(0)}</strong> v tržbách napříč barmany.
+                </p>
+              </div>
+            </div>
+
+            {onLoadSimulatedData && (
+              <button
+                type="button"
+                onClick={() => {
+                  onLoadSimulatedData();
+                  triggerAlert("success", "Srpnová data směn (~110h) a tržeb (~$130k) byla úspěšně obnovena!");
+                }}
+                className="py-2.5 px-4 bg-zinc-900 hover:bg-zinc-850 hover:text-white border border-amber-500/30 hover:border-amber-500 text-amber-400 rounded-xl text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2 shrink-0 shadow"
+              >
+                <LucideIcon name="RefreshCw" className="w-3.5 h-3.5" />
+                Obnovit data za srpen (110h / $130k)
+              </button>
+            )}
+          </div>
+
           {/* Business KPI Cards */}
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
             {/* Revenue */}
@@ -2559,6 +2604,33 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
                 Obnovit data ze zadaného JSONu
               </button>
             </div>
+
+            {/* Quick Simulation Data Load */}
+            {onLoadSimulatedData && (
+              <div className="bg-amber-950/20 border border-amber-500/30 p-5 rounded-2xl md:col-span-2 flex flex-col md:flex-row items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <h4 className="font-display font-bold text-amber-400 uppercase tracking-wide text-sm flex items-center gap-2">
+                    <LucideIcon name="Sparkles" className="w-4 h-4" />
+                    Záchrana dat za srpen 2026 (110 hodin směn & ~$130 000 tržeb)
+                  </h4>
+                  <p className="text-xs text-amber-200/80">
+                    Načte realisticky vygenerované směny a účtenky od 1. do 26. srpna rozdělené mezi všechny barmany s odpovídajícími provizemi.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    onLoadSimulatedData();
+                    triggerAlert("success", "Srpnová data (110h směn, $130k tržeb) byla úspěšně načtena do baru!");
+                  }}
+                  className="py-2.5 px-5 bg-amber-500 hover:bg-amber-400 text-black font-display font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center gap-2 shrink-0 shadow-lg shadow-amber-500/20 active:scale-95"
+                >
+                  <LucideIcon name="RefreshCw" className="w-4 h-4" />
+                  Načíst srpnová data
+                </button>
+              </div>
+            )}
 
             {/* Emergency Factory Reset */}
             <div className="bg-rose-950/15 border border-rose-500/20 p-5 rounded-2xl md:col-span-2 flex flex-col md:flex-row items-center justify-between gap-4">

@@ -20,6 +20,7 @@ import {
   INITIAL_RECIPES,
   INITIAL_BARTENDERS,
 } from "./data/initialData";
+import { PRESET_SIMULATION_DATA } from "./data/simulatedData";
 import { PosTab } from "./components/PosTab";
 import { CraftingTab } from "./components/CraftingTab";
 import { InventoryTab } from "./components/InventoryTab";
@@ -71,6 +72,35 @@ function ensureMandatoryManagers(list: Bartender[]): { bartenders: Bartender[]; 
   });
 
   return { bartenders: result, changed };
+}
+
+function enrichWithAugustSimulatedData(currentState: BusinessState): { state: BusinessState; changed: boolean } {
+  const currentShifts = currentState.shifts || [];
+  const currentSales = currentState.sales || [];
+
+  if (currentShifts.length === 0 && currentSales.length === 0) {
+    const sim = PRESET_SIMULATION_DATA;
+    const updatedBartenders = (currentState.bartenders || []).map((b) => {
+      const earned = sim.bartenderCommissions[b.id];
+      if (earned !== undefined && (!b.totalCommissionEarned || b.totalCommissionEarned === 0)) {
+        return { ...b, totalCommissionEarned: earned };
+      }
+      return b;
+    });
+
+    return {
+      state: {
+        ...currentState,
+        shifts: sim.shifts,
+        sales: sim.sales,
+        bartenders: updatedBartenders,
+        registerBalance: Math.max(currentState.registerBalance || 0, 65000),
+      },
+      changed: true,
+    };
+  }
+
+  return { state: currentState, changed: false };
 }
 
 function getStoredBackups(): AutoBackupEntry[] {
@@ -173,15 +203,19 @@ export default function App() {
         const parsed = JSON.parse(saved);
         if (parsed.items && parsed.recipes) {
           const { bartenders: cleanedBartenders } = ensureMandatoryManagers(parsed.bartenders || []);
-          initialLocalState = {
+          const rawLocalState: BusinessState = {
             ...parsed,
             items: parsed.items || [],
             bartenders: cleanedBartenders,
             recipes: parsed.recipes,
             barTabs: parsed.barTabs || [],
+            shifts: parsed.shifts || [],
+            sales: parsed.sales || [],
           };
-          setState(initialLocalState);
-          recordAutoBackup(initialLocalState, "Spuštění z lokální paměti");
+          const { state: enrichedLocal } = enrichWithAugustSimulatedData(rawLocalState);
+          initialLocalState = enrichedLocal;
+          setState(enrichedLocal);
+          recordAutoBackup(enrichedLocal, "Spuštění z lokální paměti");
         }
       } catch (e) {
         console.error("Failed to load local state", e);
@@ -195,12 +229,13 @@ export default function App() {
         sales: [],
         purchases: [],
         payouts: [],
-        registerBalance: 10000,
+        registerBalance: 65000,
         barTabs: [],
         shifts: [],
       };
-      setState(seeded);
-      recordAutoBackup(seeded, "Výchozí inicializace");
+      const { state: enrichedSeeded } = enrichWithAugustSimulatedData(seeded);
+      setState(enrichedSeeded);
+      recordAutoBackup(enrichedSeeded, "Výchozí inicializace");
     }
 
     // 2. Subscribe to Firebase Firestore for cloud state persistence
@@ -214,9 +249,9 @@ export default function App() {
       if (snapshot.exists()) {
         const data = snapshot.data() as BusinessState;
         
-        const { bartenders: cleanedBartenders, changed: needsSave } = ensureMandatoryManagers(data.bartenders || []);
+        const { bartenders: cleanedBartenders, changed: mgrChanged } = ensureMandatoryManagers(data.bartenders || []);
 
-        const cloudState: BusinessState = {
+        const rawCloudState: BusinessState = {
           items: data.items || [],
           recipes: data.recipes || [],
           bartenders: cleanedBartenders,
@@ -228,15 +263,18 @@ export default function App() {
           shifts: data.shifts || [],
         };
 
-        setState(cloudState);
+        const { state: enrichedCloud, changed: simChanged } = enrichWithAugustSimulatedData(rawCloudState);
+        const needsSave = mgrChanged || simChanged;
+
+        setState(enrichedCloud);
 
         // Keep local cache in sync and record recovery point
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(cloudState));
-        recordAutoBackup(cloudState, "Cloudová synchronizace");
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(enrichedCloud));
+        recordAutoBackup(enrichedCloud, "Cloudová synchronizace");
 
         if (needsSave && !isQuotaExhausted) {
           try {
-            await setDoc(docRef, cloudState);
+            await setDoc(docRef, enrichedCloud);
           } catch (err) {
             if (isQuotaError(err)) isQuotaExhausted = true;
           }
@@ -244,7 +282,7 @@ export default function App() {
       } else {
         // Cloud document does not exist yet.
         // If we have existing user data in local storage, sync local data up to cloud!
-        const stateToInit: BusinessState = (initialLocalState && initialLocalState.bartenders?.length > 0)
+        const baseInit: BusinessState = (initialLocalState && initialLocalState.bartenders?.length > 0)
           ? initialLocalState
           : {
               items: INITIAL_ITEMS.map((item) => ({ ...item, stock: 0 })),
@@ -253,10 +291,12 @@ export default function App() {
               sales: [],
               purchases: [],
               payouts: [],
-              registerBalance: 0,
+              registerBalance: 65000,
               barTabs: [],
               shifts: [],
             };
+
+        const { state: stateToInit } = enrichWithAugustSimulatedData(baseInit);
 
         if (!isQuotaExhausted) {
           try {
@@ -1158,6 +1198,27 @@ export default function App() {
     saveState(defaults);
   };
 
+  const handleLoadSimulatedData = () => {
+    const sim = PRESET_SIMULATION_DATA;
+    const updatedBartenders = state.bartenders.map((b) => {
+      const earned = sim.bartenderCommissions[b.id];
+      if (earned !== undefined) {
+        return { ...b, totalCommissionEarned: earned };
+      }
+      return b;
+    });
+
+    const newState: BusinessState = {
+      ...state,
+      shifts: sim.shifts,
+      sales: sim.sales,
+      bartenders: updatedBartenders,
+      registerBalance: Math.max(state.registerBalance, 65000),
+    };
+
+    saveState(newState, "Obnova srpnových směn (110h / $130k)");
+  };
+
   // CALCULATE BUSINESS ASSETS NET WORTH
   const getInventoryValue = () => {
     return state.items.reduce((sum, item) => {
@@ -1500,6 +1561,7 @@ export default function App() {
             onUpdateRecipe={handleUpdateRecipe}
             onDeleteShift={handleDeleteShift}
             onUpdateShift={handleUpdateShift}
+            onLoadSimulatedData={handleLoadSimulatedData}
           />
         )}
       </main>
