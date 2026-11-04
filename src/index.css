@@ -6,13 +6,19 @@
   --font-display: "Space Grotesk", sans-serif;
   --font-mono: "JetBrains Mono", monospace;
   
-  --color-tequila-dark: #0a0a0a;
-  --color-tequila-card: #121214;
-  --color-tequila-border: #27272a;
-  --color-tequila-orange: #eab308;
-  --color-tequila-yellow: #facc15;
-  --color-tequila-pink: #a1a1aa;
-  --color-tequila-neon: #eab308;
+  --color-tequila-dark: #0e0307;
+  --color-tequila-card: #18050c;
+  --color-tequila-border: #350d1a;
+  --color-tequila-orange: #d97706;
+  --color-tequila-yellow: #f4e7dc;
+  --color-tequila-pink: #e11d48;
+  --color-tequila-neon: #f4e7dc;
+  
+  --color-nox-wine: #3c0817;
+  --color-nox-wine-dark: #22040c;
+  --color-nox-wine-light: #5a0f25;
+  --color-nox-cream: #f4e7dc;
+  --color-nox-accent: #e11d48;
 }
 
 /* Custom scrollbars and styling */

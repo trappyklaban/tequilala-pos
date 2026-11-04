@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { InventoryItem, PurchaseItem, ItemCategory, Recipe } from "../types";
 import { LucideIcon } from "./LucideIcon";
+import { InventoryAiScannerModal } from "./InventoryAiScannerModal";
 
 interface InventoryTabProps {
   items: InventoryItem[];
@@ -29,6 +30,7 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
   onDeleteItem,
 }) => {
   const [subTab, setSubTab] = useState<"stock" | "bulk" | "buy" | "add">("stock");
+  const [showAiInventoryModal, setShowAiInventoryModal] = useState(false);
   
   // Stock tab search/filters
   const [searchStock, setSearchStock] = useState("");
@@ -352,6 +354,15 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
           >
             <LucideIcon name="Plus" className="w-3.5 h-3.5" />
             Nová Položka
+          </button>
+
+          <button
+            onClick={() => setShowAiInventoryModal(true)}
+            className="px-3 py-1.5 rounded text-[10px] font-mono font-bold uppercase tracking-wider bg-rose-600 hover:bg-rose-500 text-white flex items-center gap-1.5 transition-all shadow-md shadow-rose-950/40 cursor-pointer ml-1"
+            title="Detekovat stav zásob a sklad ze screenshotu pomocí Gemini AI"
+          >
+            <LucideIcon name="Sparkles" className="w-3.5 h-3.5 text-rose-200" />
+            AI Skenovat Sklad
           </button>
         </div>
       </div>
@@ -1509,6 +1520,31 @@ export const InventoryTab: React.FC<InventoryTabProps> = ({
             </button>
           </form>
         </div>
+      )}
+
+      {/* AI INVENTORY SCANNER MODAL */}
+      {showAiInventoryModal && (
+        <InventoryAiScannerModal
+          isOpen={showAiInventoryModal}
+          onClose={() => setShowAiInventoryModal(false)}
+          existingItems={items}
+          onApplyStockUpdates={(updates, newItems) => {
+            if (onBatchUpdateStock && updates.length > 0) {
+              onBatchUpdateStock(updates);
+            } else {
+              updates.forEach((u) => onUpdateStock(u.itemId, u.newStock));
+            }
+            if (newItems && newItems.length > 0) {
+              newItems.forEach((ni) => onAddNewItem(ni));
+            }
+            triggerAlert(
+              "success",
+              `AI úspěšně aktualizovala sklad (${updates.length} aktualizací${
+                newItems && newItems.length > 0 ? `, ${newItems.length} nových položek` : ""
+              })!`
+            );
+          }}
+        />
       )}
     </div>
   );

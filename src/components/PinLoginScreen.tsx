@@ -99,43 +99,51 @@ export const PinLoginScreen: React.FC<PinLoginScreenProps> = ({ bartenders, onLo
 
   if (!selectedUser) {
     return (
-      <div className="min-h-screen bg-tequila-dark text-gray-300 flex flex-col justify-center items-center p-4 select-none relative font-mono">
+      <div className="min-h-screen bg-[#0e0307] text-[#f4e7dc] flex flex-col justify-center items-center p-4 select-none relative font-mono">
         {/* GLOWING AMBIENT BACKGROUNDS */}
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full bg-tequila-orange/5 blur-[120px] pointer-events-none"></div>
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full bg-rose-950/20 blur-[140px] pointer-events-none"></div>
         
-        <div className="w-full max-w-xl bg-zinc-950/90 border border-tequila-border/50 rounded-2xl p-6 shadow-2xl relative z-10 space-y-6">
+        <div className="w-full max-w-xl bg-[#18050c]/90 border border-rose-950/50 rounded-2xl p-6 md:p-8 shadow-2xl relative z-10 space-y-6">
           
           {/* Header / Brand */}
-          <div className="text-center space-y-2">
-            <div className="inline-flex w-12 h-12 bg-tequila-orange/10 border border-tequila-orange/30 rounded-xl items-center justify-center text-tequila-orange text-2xl font-black italic shadow shadow-tequila-orange/10 mb-1">
-              T
+          <div className="text-center space-y-3">
+            <div className="flex justify-center">
+              <img
+                src="/assets/aistudio/noxlogo_67a21471.png"
+                alt="nox. Fleeca Tower"
+                className="w-20 h-20 rounded-2xl object-contain shadow-xl border border-rose-950/60 shadow-rose-950/40"
+              />
             </div>
-            <h1 className="text-xl font-extrabold text-white uppercase tracking-wider">
-              Tequi-la-la Terminal
-            </h1>
-            <p className="text-[10px] text-zinc-500 uppercase tracking-widest">
-              Vyberte uživatele pro přihlášení
+            <div>
+              <h1 className="text-2xl font-black text-[#f4e7dc] lowercase tracking-tight">
+                nox<span className="text-rose-400">.</span>
+              </h1>
+              <p className="text-[10px] text-zinc-400 uppercase tracking-widest mt-0.5">
+                Fleeca Tower • Drinks & Dining • POS Terminal
+              </p>
+            </div>
+            <p className="text-[11px] text-rose-300/70 uppercase tracking-wider font-semibold">
+              Vyberte profil personálu pro přihlášení
             </p>
           </div>
 
           {/* User Selection Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[380px] overflow-y-auto pr-1">
-            {/* Bartenders Options */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 max-h-[380px] overflow-y-auto pr-1">
             {bartenders.map((b) => (
               <button
                 key={b.id}
                 onClick={() => handleSelectUser(b)}
-                className="p-4 bg-zinc-900/60 hover:bg-tequila-yellow/10 border border-zinc-800 hover:border-tequila-yellow/50 rounded-xl flex items-center gap-4 transition-all text-left group cursor-pointer focus:outline-none"
+                className="p-4 bg-zinc-950/70 hover:bg-rose-950/30 border border-rose-950/40 hover:border-rose-800/60 rounded-xl flex items-center gap-3.5 transition-all text-left group cursor-pointer focus:outline-none"
               >
-                <div className="w-12 h-12 rounded-full bg-zinc-800 border border-zinc-700 text-gray-300 flex items-center justify-center font-bold text-sm shadow group-hover:scale-105 transition-transform shrink-0">
+                <div className="w-11 h-11 rounded-full bg-zinc-900 border border-rose-900/40 text-rose-200 flex items-center justify-center font-bold text-sm shadow group-hover:scale-105 transition-transform shrink-0">
                   {b.name.split(" ").map((n) => n[0]).join("")}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <span className="block font-bold text-white uppercase tracking-tight text-sm truncate">
+                  <span className="block font-bold text-zinc-100 uppercase tracking-tight text-xs truncate">
                     {b.name}
                   </span>
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1">
-                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${b.role === "manager" ? "bg-purple-950/50 text-purple-400 border border-purple-900/30" : "bg-zinc-800 text-zinc-400"}`}>
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${b.role === "manager" ? "bg-purple-950/60 text-purple-300 border border-purple-900/40" : "bg-zinc-900 text-zinc-400 border border-zinc-800"}`}>
                       {b.role === "manager" ? "👑 Manažer" : "🍸 Barman"}
                     </span>
                     <div className="flex items-center gap-1">
@@ -156,30 +164,34 @@ export const PinLoginScreen: React.FC<PinLoginScreenProps> = ({ bartenders, onLo
   }
 
   return (
-    <div className="min-h-screen bg-tequila-dark text-gray-300 flex flex-col justify-center items-center p-4 select-none relative font-mono">
+    <div className="min-h-screen bg-[#0e0307] text-[#f4e7dc] flex flex-col justify-center items-center p-4 select-none relative font-mono">
       {/* GLOWING AMBIENT BACKGROUNDS */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full bg-tequila-orange/5 blur-[120px] pointer-events-none"></div>
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full bg-rose-950/20 blur-[140px] pointer-events-none"></div>
       
-      <div className="w-full max-w-md bg-zinc-950/90 border border-tequila-border/50 rounded-2xl p-6 shadow-2xl relative z-10 space-y-6">
+      <div className="w-full max-w-md bg-[#18050c]/90 border border-rose-950/50 rounded-2xl p-6 md:p-8 shadow-2xl relative z-10 space-y-6">
         
         {/* Header / Brand with back button */}
         <div className="relative">
           <button
             onClick={handleBackToUsers}
-            className="absolute left-0 top-1/2 -translate-y-1/2 text-xs text-zinc-500 hover:text-white flex items-center gap-1 cursor-pointer transition-colors"
+            className="absolute left-0 top-1/2 -translate-y-1/2 text-xs text-zinc-400 hover:text-white flex items-center gap-1 cursor-pointer transition-colors"
           >
             <LucideIcon name="ChevronLeft" className="w-4 h-4" />
             Zpět
           </button>
           
-          <div className="text-center space-y-1">
-            <div className="inline-flex w-10 h-10 bg-tequila-orange/10 border border-tequila-orange/30 rounded-xl items-center justify-center text-tequila-orange text-lg font-black italic shadow shadow-tequila-orange/10 mb-1">
-              T
+          <div className="text-center space-y-1 pt-1">
+            <div className="flex justify-center">
+              <img
+                src="/assets/aistudio/noxlogo_67a21471.png"
+                alt="nox."
+                className="w-12 h-12 rounded-xl object-contain shadow-md border border-rose-950/60 mb-1"
+              />
             </div>
-            <h1 className="text-md font-extrabold text-white uppercase tracking-wider">
+            <h1 className="text-base font-extrabold text-[#f4e7dc] uppercase tracking-wider">
               {selectedUser.name}
             </h1>
-            <p className="text-[9px] text-zinc-500 uppercase tracking-widest">
+            <p className="text-[9px] text-zinc-400 uppercase tracking-widest">
               Zadejte přístupový PIN kód
             </p>
           </div>
@@ -187,20 +199,20 @@ export const PinLoginScreen: React.FC<PinLoginScreenProps> = ({ bartenders, onLo
 
         {/* PIN Display Visualizer */}
         <div className="space-y-3">
-          <div className="h-14 bg-zinc-900/50 border border-tequila-border/40 rounded-xl flex items-center justify-center relative overflow-hidden">
+          <div className="h-14 bg-zinc-950/80 border border-rose-950/50 rounded-xl flex items-center justify-center relative overflow-hidden">
             <div className="flex gap-4">
               {[0, 1, 2, 3].map((index) => (
                 <div
                   key={index}
                   className={`w-3.5 h-3.5 rounded-full border transition-all duration-150 ${
                     pin.length > index
-                      ? "bg-tequila-orange border-tequila-orange scale-110 shadow shadow-tequila-orange/50"
+                      ? "bg-rose-500 border-rose-400 scale-110 shadow shadow-rose-500/50"
                       : "bg-transparent border-zinc-700"
                   }`}
                 />
               ))}
               {pin.length > 4 && (
-                <span className="text-tequila-orange text-xs font-bold font-mono pl-1">
+                <span className="text-rose-400 text-xs font-bold font-mono pl-1">
                   (+{pin.length - 4})
                 </span>
               )}
@@ -210,12 +222,12 @@ export const PinLoginScreen: React.FC<PinLoginScreenProps> = ({ bartenders, onLo
           {/* Feedback/Error message */}
           <div className="h-4 flex items-center justify-center">
             {error ? (
-              <p className="text-[10px] text-rose-500 font-bold flex items-center gap-1 uppercase animate-pulse">
+              <p className="text-[10px] text-rose-400 font-bold flex items-center gap-1 uppercase animate-pulse">
                 <LucideIcon name="AlertTriangle" className="w-3.5 h-3.5 shrink-0" />
                 {error}
               </p>
             ) : pin.length > 0 ? (
-              <p className="text-[9px] text-zinc-600 uppercase tracking-wider">
+              <p className="text-[9px] text-zinc-500 uppercase tracking-wider">
                 Stiskněte ENTER nebo tlačítko pro odeslání
               </p>
             ) : null}
@@ -228,7 +240,7 @@ export const PinLoginScreen: React.FC<PinLoginScreenProps> = ({ bartenders, onLo
             <button
               key={num}
               onClick={() => handleKeyPress(num)}
-              className="h-14 bg-zinc-900 hover:bg-zinc-850 active:bg-zinc-800 border border-zinc-800 text-lg font-bold text-gray-200 rounded-xl flex items-center justify-center transition-all cursor-pointer hover:border-zinc-700 focus:outline-none"
+              className="h-14 bg-zinc-900/80 hover:bg-rose-950/40 active:bg-rose-950/70 border border-zinc-800 text-lg font-bold text-gray-200 rounded-xl flex items-center justify-center transition-all cursor-pointer hover:border-rose-900/50 focus:outline-none"
             >
               {num}
             </button>
@@ -236,21 +248,21 @@ export const PinLoginScreen: React.FC<PinLoginScreenProps> = ({ bartenders, onLo
           
           <button
             onClick={handleClear}
-            className="h-14 bg-zinc-950 hover:bg-zinc-900 border border-zinc-900 hover:border-zinc-850 text-xs font-bold text-rose-500 uppercase rounded-xl flex items-center justify-center transition-all cursor-pointer focus:outline-none"
+            className="h-14 bg-zinc-950 hover:bg-zinc-900 border border-zinc-900 hover:border-rose-950 text-xs font-bold text-rose-400 uppercase rounded-xl flex items-center justify-center transition-all cursor-pointer focus:outline-none"
           >
             Clear
           </button>
           
           <button
             onClick={() => handleKeyPress("0")}
-            className="h-14 bg-zinc-900 hover:bg-zinc-850 active:bg-zinc-800 border border-zinc-800 text-lg font-bold text-gray-200 rounded-xl flex items-center justify-center transition-all cursor-pointer hover:border-zinc-700 focus:outline-none"
+            className="h-14 bg-zinc-900/80 hover:bg-rose-950/40 active:bg-rose-950/70 border border-zinc-800 text-lg font-bold text-gray-200 rounded-xl flex items-center justify-center transition-all cursor-pointer hover:border-rose-900/50 focus:outline-none"
           >
             0
           </button>
           
           <button
             onClick={handleBackspace}
-            className="h-14 bg-zinc-950 hover:bg-zinc-900 border border-zinc-900 hover:border-zinc-850 text-gray-400 hover:text-white rounded-xl flex items-center justify-center transition-all cursor-pointer focus:outline-none"
+            className="h-14 bg-zinc-950 hover:bg-zinc-900 border border-zinc-900 hover:border-zinc-800 text-gray-400 hover:text-white rounded-xl flex items-center justify-center transition-all cursor-pointer focus:outline-none"
             title="Smazat zpět"
           >
             <LucideIcon name="Delete" className="w-5 h-5" />
@@ -262,14 +274,12 @@ export const PinLoginScreen: React.FC<PinLoginScreenProps> = ({ bartenders, onLo
           <button
             onClick={() => handleLogin(pin)}
             disabled={!pin}
-            className="w-full py-3.5 bg-tequila-orange hover:bg-tequila-yellow disabled:bg-zinc-900 disabled:text-zinc-600 disabled:border-zinc-900 text-black font-extrabold uppercase text-xs tracking-wider rounded-xl transition-all shadow-md shadow-tequila-orange/10 flex items-center justify-center gap-2 cursor-pointer focus:outline-none"
+            className="w-full py-3.5 bg-rose-600 hover:bg-rose-500 disabled:bg-zinc-900 disabled:text-zinc-600 disabled:border-zinc-900 text-white font-extrabold uppercase text-xs tracking-wider rounded-xl transition-all shadow-lg shadow-rose-950/50 flex items-center justify-center gap-2 cursor-pointer focus:outline-none"
           >
             <LucideIcon name="LogIn" className="w-4 h-4" />
-            Vstoupit do Pokladny
+            Vstoupit do Pokladny nox.
           </button>
         </div>
-
-
 
       </div>
     </div>

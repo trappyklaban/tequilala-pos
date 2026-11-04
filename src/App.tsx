@@ -31,8 +31,9 @@ import { ShiftTab } from "./components/ShiftTab";
 import { LucideIcon } from "./components/LucideIcon";
 
 // Local storage persistence key
-const LOCAL_STORAGE_KEY = "tequilala_bar_state";
-const BACKUPS_KEY = "tequilala_auto_backups_list";
+const LOCAL_STORAGE_KEY = "nox_bar_state";
+const BACKUPS_KEY = "nox_auto_backups_list";
+const FRESH_START_KEY = "nox_fresh_start_cleared_v1";
 
 let isQuotaExhausted = false;
 
@@ -64,44 +65,32 @@ function ensureMandatoryManagers(list: Bartender[]): { bartenders: Bartender[]; 
     });
   }
 
-  result = result.map((b) => {
-    if (b.id === "bart_majitel" && b.status !== "active") {
-      changed = true;
-      return { ...b, status: "active" as const };
-    }
-    return b;
-  });
-
-  return { bartenders: result, changed };
-}
-
-function enrichWithAugustSimulatedData(currentState: BusinessState): { state: BusinessState; changed: boolean } {
-  const currentShifts = currentState.shifts || [];
-  const currentSales = currentState.sales || [];
-
-  if (currentShifts.length === 0 && currentSales.length === 0) {
-    const sim = PRESET_SIMULATION_DATA;
-    const updatedBartenders = (currentState.bartenders || []).map((b) => {
-      const earned = sim.bartenderCommissions[b.id];
-      if (earned !== undefined && (!b.totalCommissionEarned || b.totalCommissionEarned === 0)) {
-        return { ...b, totalCommissionEarned: earned };
+  const hasMajitel = result.some((b) => b.id === "bart_majitel");
+  if (!hasMajitel) {
+    result.unshift({
+      id: "bart_majitel",
+      name: "Majitel nox.",
+      commissionRate: 0,
+      totalCommissionEarned: 0,
+      status: "active",
+      pin: "4444",
+      role: "manager",
+    });
+    changed = true;
+  } else {
+    result = result.map((b) => {
+      if (b.id === "bart_majitel") {
+        const updateName = b.name.includes("nox") ? b.name : "Majitel nox.";
+        if (b.status !== "active" || b.name !== updateName) {
+          changed = true;
+          return { ...b, name: updateName, status: "active" as const };
+        }
       }
       return b;
     });
-
-    return {
-      state: {
-        ...currentState,
-        shifts: sim.shifts,
-        sales: sim.sales,
-        bartenders: updatedBartenders,
-        registerBalance: Math.max(currentState.registerBalance || 0, 65000),
-      },
-      changed: true,
-    };
   }
 
-  return { state: currentState, changed: false };
+  return { bartenders: result, changed };
 }
 
 function getStoredBackups(): AutoBackupEntry[] {
@@ -217,17 +206,41 @@ export default function App() {
 
   // Load from local storage on mount AND subscribe to real-time Firestore updates
   useEffect(() => {
-    // 0. Load existing backup restore points
+    // 0. Check one-time fresh start migration for bar nox.
+    const isFreshStartDone = localStorage.getItem(FRESH_START_KEY) === "true";
+    if (!isFreshStartDone) {
+      // Clear legacy storage from Tequi-la-la
+      localStorage.removeItem("tequilala_bar_state");
+      localStorage.removeItem("tequilala_auto_backups_list");
+      localStorage.removeItem("tequilala_terminal_session");
+      localStorage.removeItem(LOCAL_STORAGE_KEY);
+      localStorage.removeItem(BACKUPS_KEY);
+      localStorage.setItem(FRESH_START_KEY, "true");
+    }
+
+    // Load backups
     const storedBackups = getStoredBackups();
     setAutoBackups(storedBackups);
 
-    // 1. Instantly load local cache for zero-latency initial render
+    // 1. Clean Seeded State for bar nox.
+    const freshNoxState: BusinessState = {
+      items: INITIAL_ITEMS,
+      recipes: INITIAL_RECIPES,
+      bartenders: INITIAL_BARTENDERS,
+      sales: [],
+      purchases: [],
+      payouts: [],
+      registerBalance: 15000,
+      barTabs: [],
+      shifts: [],
+    };
+
     let initialLocalState: BusinessState | null = null;
     const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-    if (saved) {
+    if (saved && isFreshStartDone) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed.items && parsed.recipes) {
+        if (Array.isArray(parsed.items) && Array.isArray(parsed.recipes)) {
           const { bartenders: cleanedBartenders } = ensureMandatoryManagers(parsed.bartenders || []);
           const rawLocalState: BusinessState = {
             ...parsed,
@@ -238,30 +251,19 @@ export default function App() {
             shifts: parsed.shifts || [],
             sales: parsed.sales || [],
           };
-          const { state: enrichedLocal } = enrichWithAugustSimulatedData(rawLocalState);
-          initialLocalState = enrichedLocal;
-          setState(enrichedLocal);
-          recordAutoBackup(enrichedLocal, "Spuštění z lokální paměti");
+          initialLocalState = rawLocalState;
+          setState(rawLocalState);
+          recordAutoBackup(rawLocalState, "Spuštění baru nox.");
         }
       } catch (e) {
         console.error("Failed to load local state", e);
       }
     } else {
-      // Fallback to default seeded state if no local cache exists
-      const seeded: BusinessState = {
-        items: INITIAL_ITEMS,
-        recipes: INITIAL_RECIPES,
-        bartenders: INITIAL_BARTENDERS,
-        sales: [],
-        purchases: [],
-        payouts: [],
-        registerBalance: 65000,
-        barTabs: [],
-        shifts: [],
-      };
-      const { state: enrichedSeeded } = enrichWithAugustSimulatedData(seeded);
-      setState(enrichedSeeded);
-      recordAutoBackup(enrichedSeeded, "Výchozí inicializace");
+      // Fresh clean start for nox.
+      initialLocalState = freshNoxState;
+      setState(freshNoxState);
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(freshNoxState));
+      recordAutoBackup(freshNoxState, "Zahájení provozu baru nox.");
     }
 
     // 2. Subscribe to Firebase Firestore for cloud state persistence
@@ -275,58 +277,53 @@ export default function App() {
       if (snapshot.exists()) {
         const data = snapshot.data() as BusinessState;
         
+        // If Firestore still holds old Tequi-la-la simulation sales/shifts or fresh start transition
+        const hasLegacySales = (data.sales || []).some((s: any) => s.id?.includes("sim_") || s.timestamp?.includes("2026-08"));
+        if (!isFreshStartDone || hasLegacySales) {
+          setState(freshNoxState);
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(freshNoxState));
+          if (!isQuotaExhausted) {
+            try {
+              await setDoc(docRef, freshNoxState);
+            } catch (err) {
+              if (isQuotaError(err)) isQuotaExhausted = true;
+            }
+          }
+          return;
+        }
+
         const { bartenders: cleanedBartenders, changed: mgrChanged } = ensureMandatoryManagers(data.bartenders || []);
 
         const rawCloudState: BusinessState = {
-          items: data.items || [],
-          recipes: data.recipes || [],
+          items: Array.isArray(data.items) ? data.items : INITIAL_ITEMS,
+          recipes: Array.isArray(data.recipes) ? data.recipes : INITIAL_RECIPES,
           bartenders: cleanedBartenders,
           sales: data.sales || [],
           purchases: data.purchases || [],
           payouts: data.payouts || [],
-          registerBalance: data.registerBalance ?? 0,
+          registerBalance: data.registerBalance ?? 15000,
           barTabs: data.barTabs || [],
           shifts: data.shifts || [],
         };
 
-        const { state: enrichedCloud, changed: simChanged } = enrichWithAugustSimulatedData(rawCloudState);
-        const needsSave = mgrChanged || simChanged;
-
-        setState(enrichedCloud);
+        setState(rawCloudState);
 
         // Keep local cache in sync and record recovery point
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(enrichedCloud));
-        recordAutoBackup(enrichedCloud, "Cloudová synchronizace");
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(rawCloudState));
+        recordAutoBackup(rawCloudState, "Cloudová synchronizace nox.");
 
-        if (needsSave && !isQuotaExhausted) {
+        if (mgrChanged && !isQuotaExhausted) {
           try {
-            await setDoc(docRef, enrichedCloud);
+            await setDoc(docRef, rawCloudState);
           } catch (err) {
             if (isQuotaError(err)) isQuotaExhausted = true;
           }
         }
       } else {
-        // Cloud document does not exist yet.
-        // If we have existing user data in local storage, sync local data up to cloud!
-        const baseInit: BusinessState = (initialLocalState && initialLocalState.bartenders?.length > 0)
-          ? initialLocalState
-          : {
-              items: INITIAL_ITEMS.map((item) => ({ ...item, stock: 0 })),
-              recipes: INITIAL_RECIPES,
-              bartenders: INITIAL_BARTENDERS,
-              sales: [],
-              purchases: [],
-              payouts: [],
-              registerBalance: 65000,
-              barTabs: [],
-              shifts: [],
-            };
-
-        const { state: stateToInit } = enrichWithAugustSimulatedData(baseInit);
-
+        // Cloud document does not exist yet: seed with fresh nox state
         if (!isQuotaExhausted) {
           try {
-            await setDoc(docRef, stateToInit);
+            await setDoc(docRef, freshNoxState);
           } catch (err) {
             if (isQuotaError(err)) isQuotaExhausted = true;
           }
@@ -1037,21 +1034,46 @@ export default function App() {
     });
   };
 
-  const handleAddRecipe = (newRecipe: Omit<Recipe, "id">, newItemToCreate?: Omit<InventoryItem, "id">) => {
+  const handleAddRecipe = (
+    newRecipe: Omit<Recipe, "id">,
+    newItemToCreate?: Omit<InventoryItem, "id">,
+    newRawItemsToCreate?: Omit<InventoryItem, "id">[]
+  ) => {
     let finalResultItemId = newRecipe.resultItemId;
     let updatedItems = [...state.items];
+    let finalIngredients = [...newRecipe.ingredients];
+
+    if (newRawItemsToCreate && newRawItemsToCreate.length > 0) {
+      newRawItemsToCreate.forEach((raw) => {
+        const rawId = `raw_${raw.name
+          .toLowerCase()
+          .replace(/\s+/g, "_")
+          .replace(/[^a-z0-9_]/g, "")}_${Date.now().toString().slice(-4)}`;
+        const createdRaw: InventoryItem = {
+          id: rawId,
+          ...raw,
+        };
+        updatedItems.push(createdRaw);
+        finalIngredients = finalIngredients.map((ing) => {
+          if (ing.itemId.startsWith("raw_custom_")) {
+            return { ...ing, itemId: rawId };
+          }
+          return ing;
+        });
+      });
+    }
 
     if (newItemToCreate) {
       const generatedItemId = `drink_${newItemToCreate.name
         .toLowerCase()
         .replace(/\s+/g, "_")
         .replace(/[^a-z0-9_]/g, "")}_${Date.now().toString().slice(-4)}`;
-      
+
       const createdItem: InventoryItem = {
         id: generatedItemId,
         ...newItemToCreate,
       };
-      
+
       updatedItems.push(createdItem);
       finalResultItemId = generatedItemId;
     }
@@ -1060,16 +1082,16 @@ export default function App() {
     const createdRecipe: Recipe = {
       id: recipeId,
       resultItemId: finalResultItemId,
-      ingredients: newRecipe.ingredients,
-      craftTimeSeconds: newRecipe.craftTimeSeconds,
-      yieldAmount: newRecipe.yieldAmount,
+      ingredients: finalIngredients,
+      craftTimeSeconds: newRecipe.craftTimeSeconds || 6,
+      yieldAmount: newRecipe.yieldAmount || 20,
     };
 
     saveState({
       ...state,
       items: updatedItems,
       recipes: [...state.recipes, createdRecipe],
-    });
+    }, `Vytvoření receptu nox: ${newItemToCreate?.name || finalResultItemId}`);
   };
 
   const handleDeleteRecipe = (id: string) => {
@@ -1404,7 +1426,7 @@ export default function App() {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state));
     const downloadAnchor = document.createElement("a");
     downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", `tequila-la-la_pos_backup_${Date.now()}.json`);
+    downloadAnchor.setAttribute("download", `nox_pos_backup_${Date.now()}.json`);
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
@@ -1414,10 +1436,10 @@ export default function App() {
     try {
       const parsed = JSON.parse(jsonData);
       if (parsed.items && parsed.recipes && parsed.bartenders) {
-        saveState(parsed);
+        saveState(parsed, "Import zálohy databáze");
         return { success: true };
       }
-      return { success: false, error: "JSON kód neobsahuje platný databázový model Tequi-la-la." };
+      return { success: false, error: "JSON kód neobsahuje platný databázový model baru nox." };
     } catch (e) {
       return { success: false, error: "Neplatný formát JSON. Zkopírujte kód přesně." };
     }
@@ -1425,9 +1447,24 @@ export default function App() {
 
   const handleResetDatabase = () => {
     const defaults: BusinessState = {
-      items: INITIAL_ITEMS.map((item) => ({ ...item, stock: 0 })),
-      recipes: state.recipes.length > 0 ? state.recipes : INITIAL_RECIPES,
-      bartenders: state.bartenders.length > 0 ? state.bartenders : INITIAL_BARTENDERS,
+      items: INITIAL_ITEMS,
+      recipes: INITIAL_RECIPES,
+      bartenders: state.bartenders.map((b) => ({ ...b, totalCommissionEarned: 0 })),
+      sales: [],
+      purchases: [],
+      payouts: [],
+      registerBalance: 15000,
+      barTabs: [],
+      shifts: [],
+    };
+    saveState(defaults, "Promazání všech záznamů a čistý start baru nox.");
+  };
+
+  const handleResetToZero = () => {
+    const zeroState: BusinessState = {
+      items: [],
+      recipes: [],
+      bartenders: state.bartenders.map((b) => ({ ...b, totalCommissionEarned: 0, onShift: false })),
       sales: [],
       purchases: [],
       payouts: [],
@@ -1435,7 +1472,7 @@ export default function App() {
       barTabs: [],
       shifts: [],
     };
-    saveState(defaults);
+    saveState(zeroState, "Úplné smazání skladu, nabídky a historie (Start od nuly)");
   };
 
   const handleLoadSimulatedData = () => {
@@ -1456,7 +1493,7 @@ export default function App() {
       registerBalance: Math.max(state.registerBalance, 65000),
     };
 
-    saveState(newState, "Obnova srpnových směn (110h / $130k)");
+    saveState(newState, "Obnova testovacích dat");
   };
 
   // CALCULATE BUSINESS ASSETS NET WORTH
@@ -1498,22 +1535,29 @@ export default function App() {
     : undefined;
 
   return (
-    <div className="min-h-screen bg-tequila-dark text-gray-300 selection:bg-tequila-orange/20 flex flex-col">
+    <div className="min-h-screen bg-[#0e0307] text-[#f4e7dc] selection:bg-rose-950/40 flex flex-col font-sans">
       {/* GLOWING HEADER / BAR BRANDING */}
-      <header className="border-b border-tequila-border bg-zinc-950 sticky top-0 z-50 transition-all shrink-0">
-        <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 flex flex-col md:flex-row items-center justify-between gap-4">
+      <header className="border-b border-rose-950/70 bg-[#140409] sticky top-0 z-50 transition-all shrink-0">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 py-2.5 flex flex-col md:flex-row items-center justify-between gap-4">
           {/* Logo & Operational Status */}
-          <div className="flex items-center gap-4.5">
-            <div className="w-10 h-10 bg-tequila-orange rounded flex items-center justify-center text-black font-black text-xl italic select-none shadow-md shadow-tequila-orange/10 shrink-0">
-              T
-            </div>
+          <div className="flex items-center gap-3.5">
+            <img
+              src="/assets/aistudio/noxlogo_67a21471.png"
+              alt="nox. Fleeca Tower"
+              className="w-10 h-10 rounded-xl object-contain shadow-md border border-rose-900/40 shrink-0"
+            />
 
             <div className="text-center md:text-left">
-              <h1 className="text-lg font-extrabold text-white tracking-tighter uppercase select-none">
-                Tequi-la-la <span className="text-tequila-orange">Management</span>
-              </h1>
-              <p className="text-[10px] uppercase font-mono tracking-widest text-zinc-500">
-                Operational Control Terminal v4.2.0
+              <div className="flex items-center gap-2">
+                <h1 className="text-lg font-black text-[#f4e7dc] lowercase tracking-tight select-none">
+                  nox<span className="text-rose-400">.</span>
+                </h1>
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-rose-950/60 border border-rose-900/40 text-rose-300 font-mono uppercase font-bold tracking-wider">
+                  Fleeca Tower
+                </span>
+              </div>
+              <p className="text-[10px] uppercase font-mono tracking-widest text-zinc-400">
+                Drinks & Dining • POS & Management
               </p>
             </div>
           </div>
@@ -1755,6 +1799,7 @@ export default function App() {
             items={state.items}
             recipes={state.recipes}
             onCraftSuccess={handleCraftSuccess}
+            onAddRecipe={handleAddRecipe}
           />
         )}
 
@@ -1800,6 +1845,7 @@ export default function App() {
             onRestoreDailyBackup={handleRestoreDailyBackup}
             onDeleteDailyBackup={handleDeleteDailyBackup}
             onResetDatabase={handleResetDatabase}
+            onResetToZero={handleResetToZero}
             onAddRecipe={handleAddRecipe}
             onDeleteRecipe={handleDeleteRecipe}
             onUpdateRecipe={handleUpdateRecipe}

@@ -1,15 +1,33 @@
 import React, { useState } from "react";
 import { InventoryItem, Recipe } from "../types";
 import { LucideIcon } from "./LucideIcon";
+import { RecipeAiScannerModal } from "./RecipeAiScannerModal";
 
 interface CraftingTabProps {
   items: InventoryItem[];
   recipes: Recipe[];
   onCraftSuccess: (recipeId: string, quantity: number) => void;
+  onAddRecipe?: (
+    recipe: Omit<Recipe, "id">,
+    newItemToCreate?: Omit<InventoryItem, "id">,
+    newRawItems?: Omit<InventoryItem, "id">[]
+  ) => void;
 }
 
-export const CraftingTab: React.FC<CraftingTabProps> = ({ items, recipes, onCraftSuccess }) => {
+export const CraftingTab: React.FC<CraftingTabProps> = ({
+  items,
+  recipes,
+  onCraftSuccess,
+  onAddRecipe,
+}) => {
   const [craftQuantity, setCraftQuantity] = useState<number>(1);
+  const [showAiModal, setShowAiModal] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+
+  const showToast = (message: string, type: "success" | "error" = "success") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3500);
+  };
 
   // Map item ID to actual item helper
   const getItem = (id: string): InventoryItem | undefined => {
@@ -19,7 +37,7 @@ export const CraftingTab: React.FC<CraftingTabProps> = ({ items, recipes, onCraf
   // Check if we have enough ingredients for a recipe and a specific quantity
   const checkIngredientsStock = (recipe: Recipe, qty: number) => {
     const missing: { item: InventoryItem; required: number; available: number }[] = [];
-    
+
     for (const ing of recipe.ingredients) {
       const item = getItem(ing.itemId);
       if (!item) continue;
@@ -32,7 +50,7 @@ export const CraftingTab: React.FC<CraftingTabProps> = ({ items, recipes, onCraf
         });
       }
     }
-    
+
     return {
       hasEnough: missing.length === 0,
       missing,
@@ -45,53 +63,86 @@ export const CraftingTab: React.FC<CraftingTabProps> = ({ items, recipes, onCraf
 
     const { hasEnough, missing } = checkIngredientsStock(recipe, craftQuantity);
     if (!hasEnough) {
-      alert(
-        `Chybí ingredience pro namíchání ${craftQuantity}x ${resultItem.name}!\n` +
-        missing.map((m) => `- ${m.item.name}: chybí ${Number((m.required - m.available).toFixed(2))} (Skladem: ${Number(m.available.toFixed(2))})`).join("\n")
+      showToast(
+        `Chybí ingredience pro ${craftQuantity}x ${resultItem.name}! ` +
+          missing.map((m) => `${m.item.name}: chybí ${Number((m.required - m.available).toFixed(1))}`).join(", "),
+        "error"
       );
       return;
     }
 
-    // Finalize craft in parent state instantly
     onCraftSuccess(recipe.id, craftQuantity);
-    setCraftQuantity(1); // Reset qty
+    showToast(`Namícháno ${craftQuantity}x várka (${resultItem.name}) do zásob baru nox.!`, "success");
+    setCraftQuantity(1);
   };
 
   return (
     <div className="space-y-6">
+      {/* Toast Notification */}
+      {toast && (
+        <div
+          className={`fixed bottom-12 right-6 z-50 p-4 rounded-xl shadow-2xl border text-xs font-bold font-mono animate-in fade-in slide-in-from-bottom-2 ${
+            toast.type === "error"
+              ? "bg-rose-950/95 border-rose-500/50 text-rose-200"
+              : "bg-[#22040c]/95 border-emerald-500/50 text-emerald-300"
+          }`}
+        >
+          {toast.message}
+        </div>
+      )}
+
       {/* Intro and controls */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-tequila-card border border-tequila-border p-5 rounded-lg">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#18050c] border border-rose-950/70 p-5 rounded-2xl shadow-lg">
         <div>
-          <h2 className="text-sm font-mono font-bold text-tequila-yellow uppercase tracking-wider flex items-center gap-2">
-            <LucideIcon name="ChefHat" className="w-4 h-4 text-tequila-yellow" />
-            Výrobní barový systém (Míchání)
-          </h2>
-          <p className="text-xs text-zinc-500 mt-1">
-            Z receptury se vyrobí specifikovaný počet kusů nápoje na jednu várku. Spotřebujte naskladněné suroviny k výrobě.
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-mono font-bold text-[#f4e7dc] uppercase tracking-wider flex items-center gap-2">
+              <LucideIcon name="ChefHat" className="w-4 h-4 text-rose-400" />
+              Výrobní barový systém nox. (Míchání & Příprava)
+            </h2>
+            <span className="text-[9px] px-2 py-0.5 rounded-full bg-rose-950/80 border border-rose-900/50 text-rose-300 font-mono">
+              Fleeca Tower
+            </span>
+          </div>
+          <p className="text-xs text-zinc-400 mt-1 max-w-xl">
+            Z receptury se vyrobí specifikovaný počet porcí na várku. Spotřebujte naskladněné ingredience z baru k výrobě hotových nápojů a pokrmů.
           </p>
         </div>
 
-        {/* Quantity selector for upcoming craft */}
-        <div className="flex items-center gap-3 bg-zinc-950 border border-tequila-border p-2 rounded-md self-start md:self-auto font-mono text-xs">
-          <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider pl-1">
-            Počet várek k míchání:
-          </span>
-          <div className="flex items-center gap-2">
+        {/* Action Buttons */}
+        <div className="flex flex-wrap items-center gap-3 self-start md:self-auto font-mono text-xs">
+          {onAddRecipe && (
             <button
-              onClick={() => setCraftQuantity(Math.max(1, craftQuantity - 1))}
-              className="w-7 h-7 bg-zinc-900 hover:bg-zinc-850 text-gray-300 rounded flex items-center justify-center font-bold active:scale-95 disabled:opacity-40 cursor-pointer"
+              onClick={() => setShowAiModal(true)}
+              className="py-2 px-3.5 bg-rose-950/60 hover:bg-rose-900/80 border border-rose-800/60 hover:border-rose-500 text-rose-200 font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-rose-950/30"
+              title="Vložit screenshot receptury na drink a nechat AI extrahovat ingredience"
             >
-              -
+              <LucideIcon name="Sparkles" className="w-3.5 h-3.5 text-rose-400" />
+              AI Recept ze Screenshotu
             </button>
-            <span className="font-bold text-white w-6 text-center">
-              {craftQuantity}
+          )}
+
+          {/* Quantity selector for upcoming craft */}
+          <div className="flex items-center gap-2 bg-zinc-950 border border-rose-950/70 p-1.5 rounded-xl">
+            <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider pl-1.5">
+              Počet várek:
             </span>
-            <button
-              onClick={() => setCraftQuantity(craftQuantity + 1)}
-              className="w-7 h-7 bg-zinc-900 hover:bg-zinc-850 text-gray-300 rounded flex items-center justify-center font-bold active:scale-95 disabled:opacity-40 cursor-pointer"
-            >
-              +
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setCraftQuantity(Math.max(1, craftQuantity - 1))}
+                className="w-7 h-7 bg-zinc-900 hover:bg-zinc-800 text-gray-300 rounded-lg flex items-center justify-center font-bold active:scale-95 cursor-pointer"
+              >
+                -
+              </button>
+              <span className="font-bold text-[#f4e7dc] w-7 text-center font-mono">
+                {craftQuantity}
+              </span>
+              <button
+                onClick={() => setCraftQuantity(craftQuantity + 1)}
+                className="w-7 h-7 bg-zinc-900 hover:bg-zinc-800 text-gray-300 rounded-lg flex items-center justify-center font-bold active:scale-95 cursor-pointer"
+              >
+                +
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -102,40 +153,46 @@ export const CraftingTab: React.FC<CraftingTabProps> = ({ items, recipes, onCraf
           const resultItem = getItem(recipe.resultItemId);
           if (!resultItem) return null;
 
-          const { hasEnough } = checkIngredientsStock(recipe, craftQuantity);
+          const { hasEnough, missing } = checkIngredientsStock(recipe, craftQuantity);
 
           return (
             <div
               key={recipe.id}
-              className={`bg-tequila-card border rounded-lg p-5 flex flex-col justify-between transition-all duration-300 ${
+              className={`bg-[#18050c] border rounded-2xl p-5 flex flex-col justify-between transition-all duration-200 shadow-md ${
                 !hasEnough
-                  ? "border-tequila-border/60"
-                  : "border-tequila-border hover:border-tequila-yellow hover:bg-zinc-950/40"
+                  ? "border-rose-950/50 bg-[#140409]"
+                  : "border-rose-950/80 hover:border-rose-800/80 hover:bg-[#1f050f]"
               }`}
             >
               <div>
                 {/* Recipe Header */}
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded bg-zinc-950 text-tequila-yellow border border-tequila-border">
-                      <LucideIcon name={resultItem.iconName} className="w-5 h-5" />
+                    <div className="p-3 rounded-xl bg-zinc-950 text-rose-300 border border-rose-950 shadow-inner">
+                      <LucideIcon name={resultItem.iconName} className="w-5 h-5 text-rose-400" />
                     </div>
                     <div>
                       <h3 className="font-mono font-bold text-gray-100 text-sm uppercase">
                         {resultItem.name}
                       </h3>
                       <div className="flex flex-wrap items-center gap-2 mt-1">
-                        <span className="text-[9px] font-mono bg-zinc-950 px-2 py-0.5 text-zinc-500 rounded border border-zinc-800">
-                          Cena: ${resultItem.sellPrice}
+                        <span className="text-[9px] font-mono bg-zinc-950 px-2 py-0.5 text-zinc-400 rounded-md border border-zinc-800">
+                          Prodej: ${resultItem.sellPrice}
                         </span>
-                        <span className="text-[9px] font-mono bg-tequila-orange/10 px-2 py-0.5 text-tequila-orange rounded font-bold border border-tequila-orange/15">
+                        <span className="text-[9px] font-mono bg-rose-950/50 px-2 py-0.5 text-rose-300 rounded-md font-bold border border-rose-900/40">
                           Skladem: {Math.floor(resultItem.stock)} ks
                         </span>
-                        <span className="text-[9px] font-mono bg-emerald-950/20 px-2 py-0.5 text-emerald-400 rounded font-bold border border-emerald-500/10" title={`Cena za ingredience na 1 várku (${recipe.yieldAmount ?? 20} ks)`}>
-                          Výroba várky ({recipe.yieldAmount ?? 20} ks): ${(recipe.ingredients.reduce((sum, ing) => {
-                            const ingItem = getItem(ing.itemId);
-                            return sum + (ingItem ? ingItem.purchasePrice * ing.quantity : 0);
-                          }, 0)).toFixed(2)}
+                        <span
+                          className="text-[9px] font-mono bg-emerald-950/30 px-2 py-0.5 text-emerald-400 rounded-md font-bold border border-emerald-500/20"
+                          title={`Náklady na ingredience pro 1 várku (${recipe.yieldAmount ?? 20} ks)`}
+                        >
+                          Náklad várky ({recipe.yieldAmount ?? 20} ks): $
+                          {recipe.ingredients
+                            .reduce((sum, ing) => {
+                              const ingItem = getItem(ing.itemId);
+                              return sum + (ingItem ? ingItem.purchasePrice * ing.quantity : 0);
+                            }, 0)
+                            .toFixed(2)}
                         </span>
                       </div>
                     </div>
@@ -143,45 +200,45 @@ export const CraftingTab: React.FC<CraftingTabProps> = ({ items, recipes, onCraf
                 </div>
 
                 {/* Recipe Ingredients List */}
-                <div className="space-y-2 bg-zinc-950 border border-tequila-border/50 rounded p-3 mb-4 font-mono">
-                  <span className="block text-[9px] font-bold text-zinc-500 uppercase tracking-wider mb-1">
-                    Receptura a ingredience:
+                <div className="space-y-2 bg-zinc-950/80 border border-rose-950/60 rounded-xl p-3 mb-4 font-mono">
+                  <span className="block text-[9px] font-bold text-zinc-400 uppercase tracking-wider mb-1">
+                    Receptura a potřebné suroviny:
                   </span>
-                  <div className="divide-y divide-tequila-border/30">
+                  <div className="divide-y divide-rose-950/40">
                     {recipe.ingredients.map((ing) => {
                       const ingItem = getItem(ing.itemId);
                       if (!ingItem) return null;
 
                       const requiredQty = ing.quantity * craftQuantity;
                       const hasSufficient = ingItem.stock >= requiredQty;
-
-                      // Display logic: format quantities cleanly
-                      const displayQty = requiredQty % 1 === 0 ? `${requiredQty} ks` : `${requiredQty.toFixed(1)} ks`;
-
-                      const availableDisplay = ingItem.stock % 1 === 0 ? `${ingItem.stock} ks` : `${ingItem.stock.toFixed(1)} ks`;
+                      const displayQty =
+                        requiredQty % 1 === 0 ? `${requiredQty} ks` : `${requiredQty.toFixed(1)} ks`;
 
                       return (
                         <div
                           key={ing.itemId}
-                          className="py-1 flex justify-between items-center text-[11px]"
+                          className="py-1.5 flex justify-between items-center text-xs"
                         >
-                          <span className="text-zinc-400 flex items-center gap-1.5">
-                            <LucideIcon name={ingItem.iconName} className="w-3 h-3 text-zinc-600" />
-                            {ingItem.name}
-                          </span>
-                          <div className="text-right flex items-center gap-3">
-                            <span className="font-bold text-gray-200">
-                              {displayQty}
+                          <div className="flex items-center gap-2 truncate">
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full ${
+                                hasSufficient ? "bg-emerald-500" : "bg-rose-500"
+                              }`}
+                            ></span>
+                            <span className="text-gray-300 truncate">{ingItem.name}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-[10px] shrink-0 font-mono">
+                            <span className="text-zinc-500">
+                              potřeba: <strong className="text-zinc-300">{displayQty}</strong>
                             </span>
-                            <span className="text-[9px] text-zinc-500">
-                              Skladem:{" "}
-                              <span
-                                className={`font-bold ${
-                                  hasSufficient ? "text-emerald-500" : "text-rose-500"
-                                }`}
-                              >
-                                {availableDisplay}
-                              </span>
+                            <span
+                              className={`px-1.5 py-0.5 rounded font-bold ${
+                                hasSufficient
+                                  ? "bg-zinc-900 text-zinc-400"
+                                  : "bg-rose-950 text-rose-400 border border-rose-900/40"
+                              }`}
+                            >
+                              skladem: {Math.floor(ingItem.stock)} ks
                             </span>
                           </div>
                         </div>
@@ -191,22 +248,44 @@ export const CraftingTab: React.FC<CraftingTabProps> = ({ items, recipes, onCraf
                 </div>
               </div>
 
-              {/* Action mix button */}
-              <button
-                onClick={() => handleStartCraft(recipe)}
-                className={`w-full py-2.5 rounded font-mono font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                  !hasEnough
-                    ? "bg-zinc-900 text-zinc-600 border border-zinc-800 cursor-not-allowed"
-                    : "bg-tequila-yellow text-black hover:bg-tequila-orange"
-                }`}
-              >
-                <LucideIcon name="Hammer" className="w-4 h-4" />
-                Vyrobit {craftQuantity}x várku ({craftQuantity * (recipe.yieldAmount ?? 20)} ks)
-              </button>
+              {/* Craft Action Button */}
+              <div>
+                {!hasEnough && missing.length > 0 && (
+                  <p className="text-[10px] text-rose-400 font-mono mb-2 truncate">
+                    ⚠️ Chybí suroviny: {missing.map((m) => m.item.name).join(", ")}
+                  </p>
+                )}
+
+                <button
+                  onClick={() => handleStartCraft(recipe)}
+                  disabled={!hasEnough}
+                  className={`w-full py-2.5 px-4 rounded-xl font-bold uppercase tracking-wider text-xs transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                    hasEnough
+                      ? "bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-950/40 active:scale-[0.99]"
+                      : "bg-zinc-900/80 text-zinc-600 border border-zinc-800/80 cursor-not-allowed"
+                  }`}
+                >
+                  <LucideIcon name="Flame" className="w-4 h-4" />
+                  Namíchat várku ({craftQuantity}x = {craftQuantity * (recipe.yieldAmount ?? 20)} ks)
+                </button>
+              </div>
             </div>
           );
         })}
       </div>
+
+      {/* AI Recipe Scanner Modal */}
+      {showAiModal && onAddRecipe && (
+        <RecipeAiScannerModal
+          isOpen={showAiModal}
+          onClose={() => setShowAiModal(false)}
+          existingItems={items}
+          onRecipeDetectedAndApproved={(rec, crafted, newRaws) => {
+            onAddRecipe(rec, crafted, newRaws);
+            showToast(`Recept "${crafted.name}" byl úspěšně vytvořen pomocí AI!`, "success");
+          }}
+        />
+      )}
     </div>
   );
 };

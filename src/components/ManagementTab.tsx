@@ -13,6 +13,7 @@ import {
   DailyFirestoreBackup,
 } from "../types";
 import { LucideIcon } from "./LucideIcon";
+import { RecipeAiScannerModal } from "./RecipeAiScannerModal";
 
 const toDatetimeLocal = (isoString: string): string => {
   if (!isoString) return "";
@@ -49,6 +50,7 @@ interface ManagementTabProps {
   onRestoreDailyBackup?: (backup: DailyFirestoreBackup) => void;
   onDeleteDailyBackup?: (backupId: string) => void;
   onResetDatabase: () => void;
+  onResetToZero?: () => void;
   onAddRecipe: (recipe: Omit<Recipe, "id">, newItemToCreate?: Omit<InventoryItem, "id">) => void;
   onDeleteRecipe: (id: string) => void;
   onUpdateRecipe?: (
@@ -88,6 +90,7 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
   onRestoreDailyBackup,
   onDeleteDailyBackup,
   onResetDatabase,
+  onResetToZero,
   onAddRecipe,
   onDeleteRecipe,
   onUpdateRecipe,
@@ -108,6 +111,9 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
   const [editShiftStart, setEditShiftStart] = useState<string>("");
   const [editShiftEnd, setEditShiftEnd] = useState<string>("");
   const [editShiftBartenderId, setEditShiftBartenderId] = useState<string>("");
+  const [showAiRecipeModal, setShowAiRecipeModal] = useState(false);
+  const [showZeroHardResetModal, setShowZeroHardResetModal] = useState(false);
+  const [zeroConfirmText, setZeroConfirmText] = useState("");
 
   // Export Subsidies state
   const pad = (n: number) => (n < 10 ? "0" + n : String(n));
@@ -594,8 +600,8 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-tequila-card border border-tequila-border p-5 rounded-2xl">
         <div className="space-y-1">
           <h2 className="text-xl font-display font-bold text-tequila-orange uppercase tracking-tight flex items-center gap-2">
-            <LucideIcon name="Settings" className="w-5 h-5 text-tequila-orange" />
-            Manažerský Panel Tequi-la-la
+            <LucideIcon name="Settings" className="w-5 h-5 text-rose-400" />
+            Manažerský Panel nox. (Fleeca Tower)
           </h2>
           <p className="text-xs text-gray-400 mt-1">
             Nastavení barmanů, provizí, analýza financí a archiv historie prodejů.
@@ -1257,6 +1263,15 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
                           }`}
                         >
                           Napsat název
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowAiRecipeModal(true)}
+                          className="px-2.5 py-1.5 rounded-lg text-center transition-all cursor-pointer bg-rose-600 hover:bg-rose-500 text-white flex items-center justify-center gap-1 shadow-md shadow-rose-950/40"
+                          title="Detekovat recepturu ze screenshotu pomocí Gemini AI"
+                        >
+                          <LucideIcon name="Sparkles" className="w-3 h-3 text-rose-200" />
+                          AI Sken
                         </button>
                       </div>
                     </div>
@@ -2823,7 +2838,7 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
                   Exportovat Aktuální Zálohu (JSON)
                 </h3>
                 <p className="text-xs text-gray-400">
-                  Stáhněte si kompletní data vašeho baru Tequi-la-la do souboru JSON. Tento soubor si můžete uschovat jako trvalou zálohu do PC nebo jej sdílet s ostatními manažery baru.
+                  Stáhněte si kompletní data vašeho baru nox. do souboru JSON. Tento soubor si můžete uschovat jako trvalou zálohu do PC nebo jej sdílet s ostatními manažery baru.
                 </p>
                 <div className="bg-tequila-dark/40 border border-tequila-border/60 p-4 rounded-xl text-[11px] font-mono text-gray-500 leading-relaxed">
                   Záloha obsahuje kompletní seznam položek na skladě, míchací recepty, barové zaměstnance, PIN kódy, provize a kompletní historii tržeb a směn.
@@ -2864,32 +2879,123 @@ export const ManagementTab: React.FC<ManagementTabProps> = ({
               </button>
             </div>
 
-            {/* Quick Simulation Data Load */}
-            {onLoadSimulatedData && (
-              <div className="bg-amber-950/20 border border-amber-500/30 p-5 rounded-2xl md:col-span-2 flex flex-col md:flex-row items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <h4 className="font-display font-bold text-amber-400 uppercase tracking-wide text-sm flex items-center gap-2">
-                    <LucideIcon name="Sparkles" className="w-4 h-4" />
-                    Záchrana dat za srpen 2026 (110 hodin směn & ~$130 000 tržeb)
-                  </h4>
-                  <p className="text-xs text-amber-200/80">
-                    Načte realisticky vygenerované směny a účtenky od 1. do 26. srpna rozdělené mezi všechny barmany s odpovídajícími provizemi.
-                  </p>
+            {/* Smazat sklad i nabídku na nulu (pouze Manažer) */}
+            <div className="bg-gradient-to-r from-rose-950/40 via-red-950/20 to-black/40 border border-rose-500/40 p-5 rounded-2xl md:col-span-2 flex flex-col md:flex-row items-center justify-between gap-5 shadow-lg shadow-rose-950/30">
+              <div className="space-y-1.5">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-500/20 border border-rose-500/30 text-[10px] font-mono uppercase tracking-wider text-rose-300">
+                  <LucideIcon name="ShieldAlert" className="w-3 h-3 text-rose-400" />
+                  Pouze pro manažery
                 </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    onLoadSimulatedData();
-                    triggerAlert("success", "Srpnová data (110h směn, $130k tržeb) byla úspěšně načtena do baru!");
-                  }}
-                  className="py-2.5 px-5 bg-amber-500 hover:bg-amber-400 text-black font-display font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center gap-2 shrink-0 shadow-lg shadow-amber-500/20 active:scale-95"
-                >
-                  <LucideIcon name="RefreshCw" className="w-4 h-4" />
-                  Načíst srpnová data
-                </button>
+                <h4 className="font-display font-bold text-rose-300 uppercase tracking-wide text-sm flex items-center gap-2">
+                  <LucideIcon name="Trash2" className="w-4 h-4 text-rose-400" />
+                  Smazat sklad i nabídku & Začít od nuly
+                </h4>
+                <p className="text-xs text-rose-200/80 max-w-2xl leading-relaxed">
+                  Kompletně a nenávratně vymaže veškeré záznamy ze skladu (suroviny na 0), celou nabídku drinků a receptů (recepty na 0), tržby, nákupy i historii směn. Pokladna bude vynulována na $0. Zaměstnanecké účty zůstanou zachovány pro přihlášení.
+                </p>
               </div>
-            )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowZeroHardResetModal(true);
+                  setZeroConfirmText("");
+                }}
+                className="py-3 px-5 bg-rose-700 hover:bg-rose-600 active:bg-rose-800 text-white font-display font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center gap-2 shrink-0 shadow-lg shadow-rose-950/60 active:scale-95 border border-rose-500/30"
+              >
+                <LucideIcon name="AlertTriangle" className="w-4 h-4 text-rose-200" />
+                Smazat sklad i nabídku na nulu
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI Recipe Scanner Modal */}
+      {showAiRecipeModal && (
+        <RecipeAiScannerModal
+          isOpen={showAiRecipeModal}
+          onClose={() => setShowAiRecipeModal(false)}
+          existingItems={items}
+          onRecipeDetectedAndApproved={(rec, crafted, newRaws) => {
+            onAddRecipe(rec, crafted, newRaws);
+            triggerAlert("success", `Recept "${crafted.name}" byl úspěšně vytvořen pomocí AI!`);
+          }}
+        />
+      )}
+
+      {/* Zero Hard Reset Confirmation Modal */}
+      {showZeroHardResetModal && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[#18050c] border border-rose-600/60 p-6 rounded-2xl w-full max-w-lg shadow-2xl space-y-5">
+            <div className="flex items-start gap-3.5 text-rose-400">
+              <div className="p-3 bg-rose-950/80 rounded-xl border border-rose-600/50 shrink-0">
+                <LucideIcon name="AlertOctagon" className="w-7 h-7 text-rose-400" />
+              </div>
+              <div className="space-y-1">
+                <span className="text-[10px] font-mono tracking-widest uppercase text-rose-400/90 font-bold">
+                  Kritická akce manažera • Bezpečnostní pojistka
+                </span>
+                <h3 className="font-display font-bold text-lg uppercase text-white tracking-wide">
+                  Trvale smazat sklad i nabídku?
+                </h3>
+              </div>
+            </div>
+
+            <div className="bg-rose-950/30 border border-rose-900/50 rounded-xl p-3.5 text-xs text-rose-200/90 space-y-2">
+              <p className="font-bold text-rose-300 flex items-center gap-1.5">
+                <LucideIcon name="AlertTriangle" className="w-3.5 h-3.5 text-rose-400" />
+                Tento krok je nevratný a okamžitě provede:
+              </p>
+              <ul className="list-disc pl-5 space-y-1 text-zinc-300 font-mono text-[11px]">
+                <li><strong className="text-rose-300">Sklad:</strong> Odstraní všechny suroviny a položky (zůstane 0 položek).</li>
+                <li><strong className="text-rose-300">Nabídka:</strong> Odstraní kompletní nabídku a receptury (zůstane 0 receptů).</li>
+                <li><strong className="text-rose-300">Finance:</strong> Vynuluje stav pokladny na $0 a provize barmanů na $0.</li>
+                <li><strong className="text-rose-300">Historie:</strong> Smaže veškeré záznamy prodejů, směn a nákupů.</li>
+                <li><span className="text-emerald-400 font-sans">✓ Účty barmanů a jejich přístupové PINy zůstanou zachovány.</span></li>
+              </ul>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-xs font-mono uppercase tracking-wider text-zinc-300">
+                Pro potvrzení napište přesně: <span className="font-bold text-rose-400 select-all">SMAZAT VŠE</span>
+              </label>
+              <input
+                type="text"
+                value={zeroConfirmText}
+                onChange={(e) => setZeroConfirmText(e.target.value)}
+                placeholder="Sem napište: SMAZAT VŠE"
+                autoFocus
+                className="w-full bg-zinc-950/80 border border-rose-900/80 focus:border-rose-500 rounded-xl px-4 py-2.5 text-sm font-mono text-white placeholder-zinc-600 focus:outline-none transition-colors"
+              />
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowZeroHardResetModal(false);
+                  setZeroConfirmText("");
+                }}
+                className="flex-1 py-3 rounded-xl border border-zinc-700 bg-zinc-900/90 hover:bg-zinc-800 text-zinc-300 text-xs font-bold uppercase transition-colors cursor-pointer"
+              >
+                Zrušit (Ponechat data)
+              </button>
+              <button
+                type="button"
+                disabled={zeroConfirmText.trim().toUpperCase() !== "SMAZAT VŠE"}
+                onClick={() => {
+                  onResetToZero?.();
+                  setShowZeroHardResetModal(false);
+                  setZeroConfirmText("");
+                  triggerAlert("success", "Sklad, nabídka i veškeré záznamy byly úspěšně smazány na nulu. Začínáte od nuly!");
+                }}
+                className="flex-1 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:bg-zinc-800 disabled:text-zinc-600 disabled:cursor-not-allowed text-white text-xs font-bold uppercase tracking-wider transition-all shadow-lg shadow-rose-950/50 cursor-pointer flex items-center justify-center gap-2"
+              >
+                <LucideIcon name="Trash2" className="w-4 h-4" />
+                Potvrdit a smazat vše na nulu
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -1,6 +1,6 @@
 {
   "name": "Tequi-la-la POS & Management",
-  "description": "Kompletní pokladní, výrobní, nákupní a provizní manažerský systém pro vyhlášený FiveM bar Tequi-la-la.",
+  "description": "Kompletní pokladní, výrobní, nákupní a provizní manažerský systém pro bar nox. (Fleeca Tower - Drinks & Dining) s AI rozpoznáváním receptů a skladu.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
